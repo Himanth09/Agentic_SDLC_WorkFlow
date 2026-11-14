@@ -1,0 +1,337 @@
+--- /dev/null
++++ b/CHANGELOG.md
+@@ -0,0 +1,16 @@
++# Changelog
++
++## Unreleased (2026-11-12)
++
++### Fixed
++- Fix: custom alias silently overwrites an existing link
++  - Creating a link with an alias that already exists fails (AliasTaken / HTTP 409) and the original link is unchanged; random-code collisions are retried instead of overwriting
++
++### Added
++- Feature: optional link expiration (TTL)
++  - POST /links accepts an optional positive integer ttl_seconds; an expired link returns 410 Gone
++  - Links created without ttl_seconds never expire (backward compatible API and behaviour)
++  - Existing databases without an expires_at column are migrated automatically and idempotently
++
++### Migration
++- `links.expires_at REAL` is added automatically on start-up (idempotent `ALTER TABLE`); no downtime, existing links never expire.
+--- a/links/app.py
++++ b/links/app.py
+@@ -1,7 +1,7 @@
+ """Minimal WSGI front-end."""
+ import json
+ 
+-from .service import LinkService, NotFound
++from .service import AliasTaken, Expired, LinkService, NotFound
+ 
+ 
+ def make_app(service: LinkService):
+@@ -9,16 +9,22 @@
+         length = int(environ.get("CONTENT_LENGTH") or 0)
+         body = json.loads(environ["wsgi.input"].read(length) or b"{}")
+         try:
+-            link = service.shorten(body.get("url", ""), body.get("alias"))
++            link = service.shorten(body.get("url", ""), body.get("alias"),
++                                   body.get("ttl_seconds"))
++        except AliasTaken:
++            return "409 Conflict", {"error": "alias already in use"}, []
+         except ValueError as exc:
+             return "400 Bad Request", {"error": str(exc)}, []
+-        return "201 Created", {"code": link.code, "target_url": link.target_url}, []
++        return "201 Created", {"code": link.code, "target_url": link.target_url,
++                                 "expires_at": link.expires_at}, []
+ 
+     def redirect(environ, code):
+         try:
+             url = service.resolve(code)
+         except NotFound:
+             return "404 Not Found", {"error": "not found"}, []
++        except Expired:
++            return "410 Gone", {"error": "link expired"}, []
+         return "302 Found", None, [("Location", url)]
+ 
+     def info(environ, code):
+--- a/links/models.py
++++ b/links/models.py
+@@ -7,3 +7,5 @@
+     target_url: str
+     created_at: float
+     clicks: int = 0
++    expires_at: float | None = None
++
+--- a/links/service.py
++++ b/links/service.py
+@@ -4,7 +4,7 @@
+ import time
+ 
+ from .models import Link
+-from .store import LinkStore
++from .store import DuplicateCode, LinkStore
+ 
+ ALPHABET = string.ascii_letters + string.digits
+ 
+@@ -13,23 +13,52 @@
+     pass
+ 
+ 
++class Expired(Exception):
++    """The link exists but its TTL has elapsed."""
++
++
++class AliasTaken(Exception):
++    """The requested alias is already in use."""
++
++
+ class LinkService:
+     def __init__(self, store: LinkStore, clock=time.time) -> None:
+         self.store = store
+         self.clock = clock
+ 
+-    def shorten(self, url: str, alias: str | None = None) -> Link:
++    def shorten(self, url: str, alias: str | None = None,
++                ttl_seconds: int | None = None) -> Link:
+         if not url.startswith(("http://", "https://")):
+             raise ValueError("url must start with http:// or https://")
+-        code = alias or "".join(secrets.choice(ALPHABET) for _ in range(6))
+-        link = Link(code=code, target_url=url, created_at=self.clock())
+-        self.store.save(link)
+-        return link
++        now = self.clock()
++        if ttl_seconds is not None and (
++                isinstance(ttl_seconds, bool) or not isinstance(ttl_seconds, int)
++                or ttl_seconds <= 0):
++            raise ValueError("ttl_seconds must be a positive integer")
++        expires_at = now + ttl_seconds if ttl_seconds is not None else None
++        if alias:
++            link = Link(code=alias, target_url=url, created_at=now, expires_at=expires_at)
++            try:
++                self.store.save(link)
++            except DuplicateCode:
++                raise AliasTaken(alias) from None
++            return link
++        for _ in range(5):  # random codes: retry on the rare collision
++            code = "".join(secrets.choice(ALPHABET) for _ in range(6))
++            link = Link(code=code, target_url=url, created_at=now, expires_at=expires_at)
++            try:
++                self.store.save(link)
++                return link
++            except DuplicateCode:
++                continue
++        raise RuntimeError("could not allocate a unique code")
+ 
+     def resolve(self, code: str) -> str:
+         link = self.store.get(code)
+         if link is None:
+             raise NotFound(code)
++        if link.expires_at is not None and self.clock() >= link.expires_at:
++            raise Expired(code)
+         self.store.increment_clicks(code)
+         return link.target_url
+ 
+--- a/links/store.py
++++ b/links/store.py
+@@ -4,12 +4,18 @@
+ 
+ from .models import Link
+ 
++
++class DuplicateCode(Exception):
++    """Raised when a code/alias already exists."""
++
++
+ SCHEMA = """
+ CREATE TABLE IF NOT EXISTS links (
+     code TEXT PRIMARY KEY,
+     target_url TEXT NOT NULL,
+     created_at REAL NOT NULL,
+-    clicks INTEGER NOT NULL DEFAULT 0
++    clicks INTEGER NOT NULL DEFAULT 0,
++    expires_at REAL
+ )
+ """
+ 
+@@ -20,26 +26,36 @@
+         self._lock = threading.Lock()
+         with self._lock:
+             self._conn.execute(SCHEMA)
++            self._migrate()
+             self._conn.commit()
++
++    def _migrate(self) -> None:
++        """Backward-compatible, idempotent migration for pre-existing databases."""
++        cols = {row[1] for row in self._conn.execute("PRAGMA table_info(links)")}
++        if "expires_at" not in cols:
++            self._conn.execute("ALTER TABLE links ADD COLUMN expires_at REAL")
+ 
+     def save(self, link: Link) -> None:
+         with self._lock:
+-            self._conn.execute(
+-                "INSERT OR REPLACE INTO links (code, target_url, created_at, clicks) "
+-                "VALUES (?, ?, ?, ?)",
+-                (link.code, link.target_url, link.created_at, link.clicks),
+-            )
++            try:
++                self._conn.execute(
++                    "INSERT INTO links (code, target_url, created_at, clicks, expires_at) "
++                    "VALUES (?, ?, ?, ?, ?)",
++                    (link.code, link.target_url, link.created_at, link.clicks, link.expires_at),
++                )
++            except sqlite3.IntegrityError as exc:
++                raise DuplicateCode(link.code) from exc
+             self._conn.commit()
+ 
+     def get(self, code: str):
+         with self._lock:
+             row = self._conn.execute(
+-                "SELECT code, target_url, created_at, clicks FROM links WHERE code = ?",
++                "SELECT code, target_url, created_at, clicks, expires_at FROM links WHERE code = ?",
+                 (code,),
+             ).fetchone()
+         if row is None:
+             return None
+-        return Link(code=row[0], target_url=row[1], created_at=row[2], clicks=row[3])
++        return Link(code=row[0], target_url=row[1], created_at=row[2], clicks=row[3], expires_at=row[4])
+ 
+     def increment_clicks(self, code: str) -> None:
+         with self._lock:
+--- /dev/null
++++ b/tests/test_alias_regression.py
+@@ -0,0 +1,50 @@
++"""Regression tests for the alias-overwrite bug (generated)."""
++import io
++import json
++
++import pytest
++
++from links.app import make_app
++from links.service import AliasTaken, LinkService
++from links.store import LinkStore
++
++
++@pytest.fixture
++def service():
++    return LinkService(LinkStore())
++
++
++def _post(app, body):
++    raw = json.dumps(body).encode()
++    env = {"REQUEST_METHOD": "POST", "PATH_INFO": "/links", "CONTENT_LENGTH": str(len(raw)),
++           "wsgi.input": io.BytesIO(raw)}
++    out = {}
++    payload = b"".join(app(env, lambda s, h: out.update(status=s)))
++    return out["status"], json.loads(payload or b"null")
++
++
++def test_duplicate_alias_is_rejected_and_original_kept(service):
++    """Covers: AC-BUG-ALIAS"""
++    service.shorten("https://example.com/original", alias="promo")
++    with pytest.raises(AliasTaken):
++        service.shorten("https://attacker.example", alias="promo")
++    assert service.resolve("promo") == "https://example.com/original"
++
++
++def test_duplicate_alias_returns_409_over_http(service):
++    """Covers: AC-BUG-ALIAS"""
++    app = make_app(service)
++    assert _post(app, {"url": "https://example.com/a", "alias": "launch"})[0].startswith("201")
++    status, body = _post(app, {"url": "https://example.com/b", "alias": "launch"})
++    assert status.startswith("409") and body["error"] == "alias already in use"
++
++
++def test_random_code_collision_is_retried(service, monkeypatch):
++    """Covers: AC-BUG-ALIAS"""
++    import links.service as mod
++    seq = iter("aaaaaa" "aaaaaa" "bbbbbb")
++    monkeypatch.setattr(mod.secrets, "choice", lambda _alphabet: next(seq))
++    first = service.shorten("https://example.com/1")
++    second = service.shorten("https://example.com/2")
++    assert (first.code, second.code) == ("aaaaaa", "bbbbbb")
++    assert service.resolve("aaaaaa") == "https://example.com/1"
+--- /dev/null
++++ b/tests/test_expiration.py
+@@ -0,0 +1,83 @@
++"""Tests for link expiration (generated)."""
++import io
++import sqlite3
++
++import pytest
++
++from links.app import make_app
++from links.service import Expired, LinkService
++from links.store import LinkStore
++
++
++class Clock:
++    def __init__(self):
++        self.t = 1_000.0
++
++    def __call__(self):
++        return self.t
++
++
++@pytest.fixture
++def clock():
++    return Clock()
++
++
++@pytest.fixture
++def service(clock):
++    return LinkService(LinkStore(), clock=clock)
++
++
++def _get(app, path):
++    env = {"REQUEST_METHOD": "GET", "PATH_INFO": path, "wsgi.input": io.BytesIO(b"")}
++    out = {}
++    b"".join(app(env, lambda s, h: out.update(status=s, headers=dict(h))))
++    return out["status"], out["headers"]
++
++
++def test_link_with_ttl_expires(service, clock):
++    """Covers: AC-EXP-TTL"""
++    link = service.shorten("https://example.com/flash", ttl_seconds=60)
++    assert link.expires_at == 1_060.0
++    assert service.resolve(link.code) == "https://example.com/flash"
++    clock.t = 1_060.0
++    with pytest.raises(Expired):
++        service.resolve(link.code)
++
++
++def test_expired_link_returns_410_over_http(service, clock):
++    """Covers: AC-EXP-TTL"""
++    link = service.shorten("https://example.com/flash", ttl_seconds=60)
++    app = make_app(service)
++    assert _get(app, f"/{link.code}")[0].startswith("302")
++    clock.t += 61
++    assert _get(app, f"/{link.code}")[0].startswith("410")
++
++
++def test_links_without_ttl_never_expire(service, clock):
++    """Covers: AC-EXP-COMPAT"""
++    link = service.shorten("https://example.com/forever")
++    clock.t += 10 * 365 * 86_400
++    assert link.expires_at is None
++    assert service.resolve(link.code) == "https://example.com/forever"
++
++
++@pytest.mark.parametrize("ttl", [0, -1, "60", 1.5, True])
++def test_invalid_ttl_rejected(service, ttl):
++    """Covers: AC-EXP-TTL"""
++    with pytest.raises(ValueError):
++        service.shorten("https://example.com", ttl_seconds=ttl)
++
++
++def test_existing_database_is_migrated(tmp_path):
++    """Covers: AC-EXP-MIGRATION"""
++    path = str(tmp_path / "old.db")
++    conn = sqlite3.connect(path)
++    conn.execute("CREATE TABLE links (code TEXT PRIMARY KEY, target_url TEXT NOT NULL, "
++                 "created_at REAL NOT NULL, clicks INTEGER NOT NULL DEFAULT 0)")
++    conn.execute("INSERT INTO links VALUES ('old123', 'https://example.com/old', 1.0, 7)")
++    conn.commit()
++    conn.close()
++    store = LinkStore(path)
++    link = store.get("old123")
++    assert link.clicks == 7 and link.expires_at is None
++    LinkStore(path)  # idempotent: second open does not fail

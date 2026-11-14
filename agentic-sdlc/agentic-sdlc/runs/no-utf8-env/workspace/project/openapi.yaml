@@ -1,0 +1,273 @@
+openapi: 3.1.0
+info:
+  title: URL Shortener API
+  version: 1.0.0
+  description: Create short links, redirect, and read click analytics.
+paths:
+  /healthz:
+    get:
+      operationId: health
+      summary: Liveness and analytics backlog
+      responses:
+        '200':
+          description: Healthy
+  /api/v1/links:
+    post:
+      operationId: createLink
+      summary: Create a short link
+      responses:
+        '201':
+          description: Created
+          headers:
+            Location:
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Link'
+        '400':
+          description: Malformed JSON, unknown fields or wrong content type
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '413':
+          description: Body too large
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '422':
+          description: Invalid URL, alias or TTL
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '429':
+          description: Rate limited
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          headers:
+            Retry-After:
+              schema:
+                type: integer
+        '401':
+          description: Missing or invalid API key
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '409':
+          description: Alias already in use
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required:
+              - url
+              properties:
+                url:
+                  type: string
+                  format: uri
+                  maxLength: 2048
+                  description: Absolute http(s) URL to a public host
+                ttl_seconds:
+                  type: integer
+                  minimum: 60
+                  description: Optional lifetime; expired links return 410
+                alias:
+                  type: string
+                  pattern: ^[A-Za-z0-9_-]{4,32}$
+                  description: Optional custom code (vanity alias)
+      security: &id002
+      - ApiKeyAuth: []
+  /api/v1/links/{code}:
+    get:
+      operationId: getLink
+      summary: Link metadata
+      responses:
+        '200':
+          description: Link
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Link'
+        '404':
+          description: Unknown link
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+      parameters:
+      - &id001
+        name: code
+        in: path
+        required: true
+        schema:
+          type: string
+          pattern: ^[A-Za-z0-9_-]{1,32}$
+    delete:
+      operationId: deleteLink
+      summary: Disable a link (owner only)
+      responses:
+        '204':
+          description: Disabled
+        '404':
+          description: Unknown link or not owned by caller
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '401':
+          description: Missing or invalid API key
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+      parameters:
+      - *id001
+      security: *id002
+  /api/v1/links/{code}/stats:
+    get:
+      operationId: getLinkStats
+      summary: Click analytics for a link
+      responses:
+        '200':
+          description: Stats
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Stats'
+        '400':
+          description: Invalid query parameter
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '404':
+          description: Unknown link
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+      parameters:
+      - *id001
+      - name: days
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 90
+          default: 30
+  /{code}:
+    get:
+      operationId: redirect
+      summary: Redirect to the target URL
+      responses:
+        '302':
+          description: Redirect
+          headers:
+            Location:
+              schema:
+                type: string
+        '404':
+          description: Unknown or disabled link
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '410':
+          description: Link expired
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+      parameters:
+      - *id001
+components:
+  securitySchemes:
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+  schemas:
+    Link:
+      type: object
+      required:
+      - code
+      - short_url
+      - target_url
+      - created_at
+      properties:
+        code:
+          type: string
+        short_url:
+          type: string
+        target_url:
+          type: string
+        created_at:
+          type: number
+        expires_at:
+          type:
+          - number
+          - 'null'
+        is_custom:
+          type: boolean
+        disabled:
+          type: boolean
+    Stats:
+      type: object
+      properties:
+        code:
+          type: string
+        window_days:
+          type: integer
+        total_clicks:
+          type: integer
+        unique_visitors:
+          type: integer
+        clicks_by_day:
+          type: array
+          items:
+            type: object
+            properties:
+              day:
+                type: string
+                format: date
+              clicks:
+                type: integer
+        top_referrers:
+          type: array
+          items:
+            type: object
+            properties:
+              host:
+                type: string
+              clicks:
+                type: integer
+        user_agents:
+          type: object
+          additionalProperties:
+            type: integer
+    Problem:
+      type: object
+      properties:
+        type:
+          type: string
+        title:
+          type: string
+        status:
+          type: integer
+        detail:
+          type: string

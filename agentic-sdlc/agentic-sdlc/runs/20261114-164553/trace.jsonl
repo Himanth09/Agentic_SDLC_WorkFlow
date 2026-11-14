@@ -1,0 +1,41 @@
+{"t": 0.0, "event": "run_started", "run_id": "20261114-164553", "tasks": 3}
+{"t": 0.003, "event": "task_started", "task": "understand", "agent": "requirements", "attempt": 1}
+{"t": 0.013, "event": "task_succeeded", "task": "understand", "ms": 10, "outputs": ["domain_confidence", "requirement"]}
+{"t": 0.014, "event": "gate_requested", "gate": "requirements", "task": "understand", "questions": 11, "blocking": 0}
+{"t": 0.015, "event": "gate_decided", "gate": "requirements", "approved": true, "by": "policy:auto", "comment": "accepted 11 default assumption(s); flagged in summary"}
+{"t": 0.019, "event": "task_started", "task": "plan", "agent": "planner", "attempt": 1}
+{"t": 0.02, "event": "task_succeeded", "task": "plan", "ms": 1, "outputs": ["plan", "plans"]}
+{"t": 0.021, "event": "gate_requested", "gate": "plan", "task": "plan", "questions": 0, "blocking": 0}
+{"t": 0.022, "event": "gate_decided", "gate": "plan", "approved": true, "by": "policy:auto", "comment": ""}
+{"t": 0.023, "event": "plan_extended", "by": "plan", "added": ["design_architecture", "design_contract", "gen_domain", "gen_persistence", "gen_analytics", "gen_edge", "gen_service", "gen_api", "gen_unit_tests", "gen_integration_tests", "gen_docs", "validate", "risk_review", "report"]}
+{"t": 0.026, "event": "task_started", "task": "escalate", "agent": "reporter", "attempt": 1}
+{"t": 0.027, "event": "task_started", "task": "design_architecture", "agent": "architect", "attempt": 1}
+{"t": 0.028, "event": "task_succeeded", "task": "escalate", "ms": 1, "outputs": []}
+{"t": 0.032, "event": "task_succeeded", "task": "design_architecture", "ms": 5, "outputs": ["architecture", "tradeoffs"]}
+{"t": 0.037, "event": "task_started", "task": "design_contract", "agent": "architect", "attempt": 1}
+{"t": 0.056, "event": "task_succeeded", "task": "design_contract", "ms": 18, "outputs": ["api_contract", "data_schema"]}
+{"t": 0.06, "event": "task_started", "task": "gen_domain", "agent": "codegen", "attempt": 1}
+{"t": 0.061, "event": "task_started", "task": "gen_unit_tests", "agent": "testgen", "attempt": 1}
+{"t": 0.062, "event": "task_started", "task": "gen_integration_tests", "agent": "testgen", "attempt": 1}
+{"t": 0.063, "event": "task_started", "task": "gen_docs", "agent": "docgen", "attempt": 1}
+{"t": 0.088, "event": "task_succeeded", "task": "gen_domain", "ms": 27, "outputs": []}
+{"t": 0.095, "event": "task_started", "task": "gen_persistence", "agent": "codegen", "attempt": 1}
+{"t": 0.096, "event": "task_started", "task": "gen_edge", "agent": "codegen", "attempt": 1}
+{"t": 0.097, "event": "task_succeeded", "task": "gen_integration_tests", "ms": 35, "outputs": []}
+{"t": 0.107, "event": "task_succeeded", "task": "gen_persistence", "ms": 12, "outputs": []}
+{"t": 0.113, "event": "task_started", "task": "gen_analytics", "agent": "codegen", "attempt": 1}
+{"t": 0.114, "event": "task_succeeded", "task": "gen_edge", "ms": 18, "outputs": []}
+{"t": 0.119, "event": "task_succeeded", "task": "gen_unit_tests", "ms": 58, "outputs": []}
+{"t": 0.123, "event": "task_succeeded", "task": "gen_docs", "ms": 59, "outputs": []}
+{"t": 0.127, "event": "task_succeeded", "task": "gen_analytics", "ms": 13, "outputs": []}
+{"t": 0.13, "event": "task_started", "task": "gen_service", "agent": "codegen", "attempt": 1}
+{"t": 0.134, "event": "task_succeeded", "task": "gen_service", "ms": 3, "outputs": []}
+{"t": 0.138, "event": "task_started", "task": "gen_api", "agent": "codegen", "attempt": 1}
+{"t": 0.144, "event": "task_succeeded", "task": "gen_api", "ms": 6, "outputs": []}
+{"t": 0.149, "event": "task_started", "task": "validate", "agent": "validator", "attempt": 1}
+{"t": 4.797, "event": "task_succeeded", "task": "validate", "ms": 4648, "outputs": ["validation"]}
+{"t": 4.801, "event": "task_started", "task": "risk_review", "agent": "risk", "attempt": 1}
+{"t": 4.802, "event": "task_succeeded", "task": "risk_review", "ms": 0, "outputs": ["failure_scenarios", "risks", "validation_strategy"]}
+{"t": 4.807, "event": "task_started", "task": "report", "agent": "reporter", "attempt": 1}
+{"t": 4.836, "event": "task_failed", "task": "report", "error": "unexpected UnicodeEncodeError: 'charmap' codec can't encode character '\\u23f8' in position 6112: character maps to <undefined>"}
+{"t": 4.841, "event": "run_finished", "ok": false, "executions": 17, "repair_cycles": 0}

@@ -1,0 +1,44 @@
+{"t": 0.002, "event": "run_started", "run_id": "04b-ambiguous-answered", "tasks": 3}
+{"t": 0.002, "event": "task_started", "task": "understand", "agent": "requirements", "attempt": 1}
+{"t": 0.007, "event": "task_succeeded", "task": "understand", "ms": 5, "outputs": ["domain_confidence", "requirement"]}
+{"t": 0.007, "event": "gate_requested", "gate": "requirements", "task": "understand", "questions": 14, "blocking": 1}
+{"t": 0.008, "event": "gate_decided", "gate": "requirements", "approved": true, "by": "file:ambiguous_campaign_links.yaml", "comment": "PO (marketing): confirmed campaign short links; privacy-first analytics."}
+{"t": 0.008, "event": "guardrail", "blocked": "answer Q7: 'keep them forever' rejected (expected a number between 1 and 3650); default kept"}
+{"t": 0.008, "event": "task_started", "task": "plan", "agent": "planner", "attempt": 1}
+{"t": 0.009, "event": "task_succeeded", "task": "plan", "ms": 0, "outputs": ["plan", "plans"]}
+{"t": 0.009, "event": "gate_requested", "gate": "plan", "task": "plan", "questions": 0, "blocking": 0}
+{"t": 0.009, "event": "gate_decided", "gate": "plan", "approved": true, "by": "file:ambiguous_campaign_links.yaml", "comment": "Plan reviewed by tech lead."}
+{"t": 0.009, "event": "plan_extended", "by": "plan", "added": ["design_architecture", "design_contract", "gen_domain", "gen_persistence", "gen_analytics", "gen_edge", "gen_service", "gen_api", "gen_unit_tests", "gen_integration_tests", "gen_docs", "validate", "risk_review", "report"]}
+{"t": 0.01, "event": "task_started", "task": "escalate", "agent": "reporter", "attempt": 1}
+{"t": 0.01, "event": "task_started", "task": "design_architecture", "agent": "architect", "attempt": 1}
+{"t": 0.01, "event": "task_succeeded", "task": "escalate", "ms": 0, "outputs": []}
+{"t": 0.012, "event": "task_succeeded", "task": "design_architecture", "ms": 2, "outputs": ["architecture", "tradeoffs"]}
+{"t": 0.013, "event": "task_started", "task": "design_contract", "agent": "architect", "attempt": 1}
+{"t": 0.022, "event": "task_succeeded", "task": "design_contract", "ms": 9, "outputs": ["api_contract", "data_schema"]}
+{"t": 0.026, "event": "task_started", "task": "gen_domain", "agent": "codegen", "attempt": 1}
+{"t": 0.026, "event": "task_started", "task": "gen_unit_tests", "agent": "testgen", "attempt": 1}
+{"t": 0.026, "event": "task_started", "task": "gen_integration_tests", "agent": "testgen", "attempt": 1}
+{"t": 0.027, "event": "task_started", "task": "gen_docs", "agent": "docgen", "attempt": 1}
+{"t": 0.036, "event": "task_succeeded", "task": "gen_integration_tests", "ms": 9, "outputs": []}
+{"t": 0.046, "event": "task_succeeded", "task": "gen_domain", "ms": 20, "outputs": []}
+{"t": 0.049, "event": "task_started", "task": "gen_persistence", "agent": "codegen", "attempt": 1}
+{"t": 0.049, "event": "task_started", "task": "gen_edge", "agent": "codegen", "attempt": 1}
+{"t": 0.049, "event": "task_succeeded", "task": "gen_unit_tests", "ms": 23, "outputs": []}
+{"t": 0.051, "event": "task_succeeded", "task": "gen_docs", "ms": 24, "outputs": []}
+{"t": 0.052, "event": "task_succeeded", "task": "gen_edge", "ms": 3, "outputs": []}
+{"t": 0.054, "event": "task_succeeded", "task": "gen_persistence", "ms": 5, "outputs": []}
+{"t": 0.055, "event": "task_started", "task": "gen_analytics", "agent": "codegen", "attempt": 1}
+{"t": 0.056, "event": "task_succeeded", "task": "gen_analytics", "ms": 0, "outputs": []}
+{"t": 0.057, "event": "task_started", "task": "gen_service", "agent": "codegen", "attempt": 1}
+{"t": 0.058, "event": "task_succeeded", "task": "gen_service", "ms": 0, "outputs": []}
+{"t": 0.059, "event": "task_started", "task": "gen_api", "agent": "codegen", "attempt": 1}
+{"t": 0.06, "event": "task_succeeded", "task": "gen_api", "ms": 0, "outputs": []}
+{"t": 0.062, "event": "task_started", "task": "validate", "agent": "validator", "attempt": 1}
+{"t": 2.021, "event": "task_succeeded", "task": "validate", "ms": 1958, "outputs": ["validation"]}
+{"t": 2.023, "event": "task_started", "task": "risk_review", "agent": "risk", "attempt": 1}
+{"t": 2.023, "event": "task_succeeded", "task": "risk_review", "ms": 0, "outputs": ["failure_scenarios", "risks", "validation_strategy"]}
+{"t": 2.025, "event": "task_started", "task": "report", "agent": "reporter", "attempt": 1}
+{"t": 2.028, "event": "task_succeeded", "task": "report", "ms": 3, "outputs": ["summary"]}
+{"t": 2.028, "event": "gate_requested", "gate": "release", "task": "report", "questions": 0, "blocking": 0}
+{"t": 2.028, "event": "gate_decided", "gate": "release", "approved": true, "by": "file:ambiguous_campaign_links.yaml", "comment": "Approved for staging deployment; confirm Q7 retention with legal."}
+{"t": 2.033, "event": "run_finished", "ok": true, "executions": 17, "repair_cycles": 0}

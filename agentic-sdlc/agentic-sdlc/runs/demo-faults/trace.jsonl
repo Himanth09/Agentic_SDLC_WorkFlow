@@ -1,0 +1,56 @@
+{"t": 0.001, "event": "run_started", "run_id": "demo-faults", "tasks": 3}
+{"t": 0.003, "event": "task_started", "task": "understand", "agent": "requirements", "attempt": 1}
+{"t": 0.013, "event": "task_succeeded", "task": "understand", "ms": 10, "outputs": ["domain_confidence", "requirement"]}
+{"t": 0.015, "event": "gate_requested", "gate": "requirements", "task": "understand", "questions": 11, "blocking": 0}
+{"t": 0.016, "event": "gate_decided", "gate": "requirements", "approved": true, "by": "policy:auto", "comment": "accepted 11 default assumption(s); flagged in summary"}
+{"t": 0.019, "event": "task_started", "task": "plan", "agent": "planner", "attempt": 1}
+{"t": 0.02, "event": "task_succeeded", "task": "plan", "ms": 1, "outputs": ["plan", "plans"]}
+{"t": 0.021, "event": "gate_requested", "gate": "plan", "task": "plan", "questions": 0, "blocking": 0}
+{"t": 0.021, "event": "gate_decided", "gate": "plan", "approved": true, "by": "policy:auto", "comment": ""}
+{"t": 0.022, "event": "plan_extended", "by": "plan", "added": ["design_architecture", "design_contract", "gen_domain", "gen_persistence", "gen_analytics", "gen_edge", "gen_service", "gen_api", "gen_unit_tests", "gen_integration_tests", "gen_docs", "validate", "risk_review", "report"]}
+{"t": 0.025, "event": "task_started", "task": "escalate", "agent": "reporter", "attempt": 1}
+{"t": 0.026, "event": "task_started", "task": "design_architecture", "agent": "architect", "attempt": 1}
+{"t": 0.026, "event": "task_succeeded", "task": "escalate", "ms": 1, "outputs": []}
+{"t": 0.033, "event": "task_succeeded", "task": "design_architecture", "ms": 7, "outputs": ["architecture", "tradeoffs"]}
+{"t": 0.036, "event": "task_started", "task": "design_contract", "agent": "architect", "attempt": 1}
+{"t": 0.037, "event": "task_retry", "task": "design_contract", "retry": 1, "error": "injected transient fault in design_contract"}
+{"t": 0.041, "event": "task_started", "task": "design_contract", "agent": "architect", "attempt": 2}
+{"t": 0.163, "event": "task_succeeded", "task": "design_contract", "ms": 121, "outputs": ["api_contract", "data_schema"]}
+{"t": 0.168, "event": "task_started", "task": "gen_domain", "agent": "codegen", "attempt": 1}
+{"t": 0.169, "event": "task_started", "task": "gen_unit_tests", "agent": "testgen", "attempt": 1}
+{"t": 0.17, "event": "task_started", "task": "gen_integration_tests", "agent": "testgen", "attempt": 1}
+{"t": 0.172, "event": "task_started", "task": "gen_docs", "agent": "docgen", "attempt": 1}
+{"t": 0.198, "event": "task_succeeded", "task": "gen_domain", "ms": 29, "outputs": []}
+{"t": 0.207, "event": "task_started", "task": "gen_persistence", "agent": "codegen", "attempt": 1}
+{"t": 0.208, "event": "task_started", "task": "gen_edge", "agent": "codegen", "attempt": 1}
+{"t": 0.21, "event": "task_succeeded", "task": "gen_integration_tests", "ms": 39, "outputs": []}
+{"t": 0.21, "event": "fault_injected", "task": "gen_persistence", "kind": "defective generation", "file": "shortener/repository.py"}
+{"t": 0.22, "event": "task_succeeded", "task": "gen_persistence", "ms": 12, "outputs": []}
+{"t": 0.225, "event": "task_started", "task": "gen_analytics", "agent": "codegen", "attempt": 1}
+{"t": 0.226, "event": "task_succeeded", "task": "gen_edge", "ms": 18, "outputs": []}
+{"t": 0.232, "event": "task_succeeded", "task": "gen_docs", "ms": 59, "outputs": []}
+{"t": 0.236, "event": "task_succeeded", "task": "gen_unit_tests", "ms": 67, "outputs": []}
+{"t": 0.24, "event": "task_succeeded", "task": "gen_analytics", "ms": 15, "outputs": []}
+{"t": 0.244, "event": "task_started", "task": "gen_service", "agent": "codegen", "attempt": 1}
+{"t": 0.248, "event": "task_succeeded", "task": "gen_service", "ms": 3, "outputs": []}
+{"t": 0.253, "event": "task_started", "task": "gen_api", "agent": "codegen", "attempt": 1}
+{"t": 0.26, "event": "task_succeeded", "task": "gen_api", "ms": 6, "outputs": []}
+{"t": 0.266, "event": "task_started", "task": "validate", "agent": "validator", "attempt": 1}
+{"t": 4.656, "event": "repair_cycle", "cycle": 1, "trigger": "validate", "targets": ["gen_persistence"], "rerun": ["gen_analytics", "gen_api", "gen_persistence", "gen_service", "report", "risk_review", "validate"]}
+{"t": 4.66, "event": "task_started", "task": "gen_persistence", "agent": "codegen", "attempt": 2}
+{"t": 4.664, "event": "task_succeeded", "task": "gen_persistence", "ms": 3, "outputs": []}
+{"t": 4.667, "event": "task_started", "task": "gen_analytics", "agent": "codegen", "attempt": 2}
+{"t": 4.67, "event": "task_succeeded", "task": "gen_analytics", "ms": 2, "outputs": []}
+{"t": 4.674, "event": "task_started", "task": "gen_service", "agent": "codegen", "attempt": 2}
+{"t": 4.676, "event": "task_succeeded", "task": "gen_service", "ms": 2, "outputs": []}
+{"t": 4.682, "event": "task_started", "task": "gen_api", "agent": "codegen", "attempt": 2}
+{"t": 4.688, "event": "task_succeeded", "task": "gen_api", "ms": 6, "outputs": []}
+{"t": 4.692, "event": "task_started", "task": "validate", "agent": "validator", "attempt": 2}
+{"t": 7.849, "event": "task_succeeded", "task": "validate", "ms": 3157, "outputs": ["validation"]}
+{"t": 7.853, "event": "task_started", "task": "risk_review", "agent": "risk", "attempt": 1}
+{"t": 7.854, "event": "task_succeeded", "task": "risk_review", "ms": 0, "outputs": ["failure_scenarios", "risks", "validation_strategy"]}
+{"t": 7.857, "event": "task_started", "task": "report", "agent": "reporter", "attempt": 1}
+{"t": 7.918, "event": "task_succeeded", "task": "report", "ms": 61, "outputs": ["summary"]}
+{"t": 7.919, "event": "gate_requested", "gate": "release", "task": "report", "questions": 0, "blocking": 0}
+{"t": 7.92, "event": "gate_decided", "gate": "release", "approved": true, "by": "policy:auto", "comment": ""}
+{"t": 7.937, "event": "run_finished", "ok": true, "executions": 23, "repair_cycles": 1}

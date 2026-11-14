@@ -1,0 +1,28 @@
+[project]
+name = "agentic-sdlc"
+version = "0.1.0"
+description = "Agentic workflow that turns a software requirement into a reviewable engineering outcome"
+requires-python = ">=3.10"
+dependencies = ["pyyaml>=6"]
+
+[project.optional-dependencies]
+dev = ["pytest>=7", "ruff", "mypy"]
+anthropic = ["anthropic"]
+bedrock = ["boto3"]
+
+[project.scripts]
+sdlc-agent = "sdlc_agent.cli:main"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = ["e2e: full workflow runs (slower, ~2s each)"]
+
+[tool.ruff]
+line-length = 120
+extend-exclude = ["sdlc_agent/blueprints/url_shortener/files", "runs"]
+
+[tool.setuptools.packages.find]
+include = ["sdlc_agent*"]
+
+[tool.setuptools.package-data]
+"sdlc_agent.blueprints.url_shortener" = ["files/**/*"]

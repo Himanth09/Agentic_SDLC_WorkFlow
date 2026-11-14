@@ -1,0 +1,24 @@
+# Recorded human decisions for the ambiguous scenario (file approval mode).
+# Equivalent to a product owner answering the clarifying questions at the gate.
+gates:
+  requirements:
+    approve: true
+    comment: "PO (marketing): confirmed campaign short links; privacy-first analytics."
+    answers:
+      Q1: "Yes - a URL shortener for campaign links."
+      Q2: "Peak 2k redirects/s during launches, ~5M links total."
+      Q3: "p99 under 100 ms is fine."
+      Q5: "Yes, API key required - only the campaign tool creates links."
+      Q6: "Do not store IP addresses at all."
+      Q7: "keep them forever"            # not a number of days -> rejected, default kept
+      Q8: "Clicks per day, referrers, device type. No geo."
+      Q9: "20 per minute per key"
+      Q10: "8 characters"
+      Q11: "Campaign links expire after 180 days by default"
+      Q12: "yes, marketing needs vanity aliases"
+  plan:
+    approve: true
+    comment: "Plan reviewed by tech lead."
+  release:
+    approve: true
+    comment: "Approved for staging deployment; confirm Q7 retention with legal."

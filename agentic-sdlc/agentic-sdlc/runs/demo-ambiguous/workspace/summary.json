@@ -1,0 +1,362 @@
+{
+  "run_id": "demo-ambiguous",
+  "status": "escalated",
+  "failed_critical": [
+    "understand"
+  ],
+  "requirement": {
+    "raw": "We need a link thing for our marketing campaigns. It should be fast and secure, and it\nshould track stuff so the team can see how campaigns perform. Lots of users will hit it,\nso keep it simple and reliable.",
+    "title": "We need a link thing for our marketing campaigns",
+    "kind": "greenfield",
+    "domain": "url_shortener",
+    "summary": "Build a new URL shortener service: Reject unsafe or malformed target URLs; Click analytics per link; Rate limiting and API-key protection of write endpoints. Also assumed: 7 capabilities required for production use.",
+    "capabilities": [
+      "Reject unsafe or malformed target URLs (stated)",
+      "Click analytics per link (stated)",
+      "Rate limiting and API-key protection of write endpoints (stated)",
+      "Create a short link for a long URL (assumed)",
+      "Resolve a short code and redirect (HTTP 302) (assumed)",
+      "Optional custom alias (vanity code) (assumed)",
+      "Optional link expiry (TTL) (assumed)",
+      "Durable storage of links and analytics (assumed)",
+      "Horizontal scalability of the redirect path (assumed)",
+      "Versioned REST API with a published contract (assumed)"
+    ],
+    "nfrs": {
+      "Scale targets": "Design target 10k redirects/s peak, 100 creates/s, ~1B links over 5 years (read:write ~ 100:1). The prototype is sized for one node; the design scales out.",
+      "Latency objective": "p99 redirect latency < 50 ms inside the service (cache hit < 5 ms).",
+      "Availability objective": "99.95% for redirects; creation and analytics may degrade first (analytics is best-effort and must never block redirects).",
+      "Write access control": "Write endpoints require an API key (X-API-Key); redirects and stats are public.",
+      "Analytics privacy": "Never store raw IPs: keep a salted, daily-rotating hash for unique-visitor counts.",
+      "Analytics retention": "Raw click events 90 days; daily aggregates kept for the life of the link.",
+      "Analytics dimensions": "Total and daily clicks, unique visitors, top referrer hosts, user-agent class. Geo-IP is out of scope for v1 (needs a licensed database).",
+      "Abuse limits": "60 link creations per minute per API key (or per IP when keys are disabled).",
+      "Short-code format": "7-character random base62 codes (62^7 = 3.5e12), unguessable, no sequential IDs.",
+      "Default expiry": "Links never expire unless the caller sets ttl_seconds.",
+      "Custom aliases": "Yes - custom aliases allowed, first-come-first-served, never overwritten."
+    },
+    "acceptance_criteria": [
+      {
+        "id": "AC-CREATE",
+        "text": "POST /api/v1/links with a valid http(s) URL returns 201 with a unique short code and short_url",
+        "kind": "functional"
+      },
+      {
+        "id": "AC-REDIRECT",
+        "text": "GET /{code} returns 302 with Location set to the original URL; unknown codes return 404",
+        "kind": "functional"
+      },
+      {
+        "id": "AC-VALIDATE",
+        "text": "Non-http(s), credential-bearing, local or private-network target URLs are rejected with 422",
+        "kind": "security"
+      },
+      {
+        "id": "AC-ALIAS",
+        "text": "A custom alias can be requested; a taken alias returns 409 and never overwrites the existing link",
+        "kind": "functional"
+      },
+      {
+        "id": "AC-EXPIRY",
+        "text": "Links may carry a TTL; expired links return 410 Gone",
+        "kind": "functional"
+      },
+      {
+        "id": "AC-PERSIST",
+        "text": "Links and analytics survive a process restart",
+        "kind": "functional"
+      },
+      {
+        "id": "AC-ANALYTICS",
+        "text": "Every redirect records a click; the stats endpoint returns totals, per-day counts, top referrers and user-agent classes",
+        "kind": "functional"
+      },
+      {
+        "id": "AC-PRIVACY",
+        "text": "Raw client IPs and full referrer URLs are never stored; raw events are purgeable after the retention window",
+        "kind": "security"
+      },
+      {
+        "id": "AC-CONCURRENCY",
+        "text": "Code allocation is collision-safe under concurrent writers (no duplicate codes, no lost or overwritten links)",
+        "kind": "nfr"
+      },
+      {
+        "id": "AC-HOTPATH",
+        "text": "Redirects are served from cache after first access and analytics recording never blocks or fails a redirect",
+        "kind": "nfr"
+      },
+      {
+        "id": "AC-ABUSE",
+        "text": "Link creation is rate limited per client (429 + Retry-After); write endpoints require an API key when configured; only owners can disable a link",
+        "kind": "security"
+      },
+      {
+        "id": "AC-CONTRACT",
+        "text": "The HTTP API conforms exactly to the published OpenAPI contract; errors use application/problem+json",
+        "kind": "functional"
+      }
+    ],
+    "ambiguities": [
+      {
+        "id": "Q1",
+        "term": "domain",
+        "category": "missing_scope",
+        "question": "This reads like a url shortener service but the wording is indirect. Confirm that is the intended system?",
+        "default_assumption": "Build a url shortener service.",
+        "severity": "high",
+        "answer": null,
+        "dimension": ""
+      },
+      {
+        "id": "Q2",
+        "term": "Lots of users",
+        "category": "vague_term",
+        "question": "'Lots of users' is not measurable. What peak redirect throughput and total link volume must the service support?",
+        "default_assumption": "Design target 10k redirects/s peak, 100 creates/s, ~1B links over 5 years (read:write ~ 100:1). The prototype is sized for one node; the design scales out.",
+        "severity": "medium",
+        "answer": null,
+        "dimension": "scale"
+      },
+      {
+        "id": "Q3",
+        "term": "fast",
+        "category": "vague_term",
+        "question": "'fast' is not measurable. What latency objective applies to redirects?",
+        "default_assumption": "p99 redirect latency < 50 ms inside the service (cache hit < 5 ms).",
+        "severity": "medium",
+        "answer": null,
+        "dimension": "latency"
+      },
+      {
+        "id": "Q4",
+        "term": "reliable",
+        "category": "vague_term",
+        "question": "'reliable' is not measurable. What availability target applies, and may link creation degrade before redirects?",
+        "default_assumption": "99.95% for redirects; creation and analytics may degrade first (analytics is best-effort and must never block redirects).",
+        "severity": "medium",
+        "answer": null,
+        "dimension": "availability"
+      },
+      {
+        "id": "Q5",
+        "term": "secure",
+        "category": "vague_term",
+        "question": "'secure' is not measurable. Who may create and delete links? Is an API key required for write endpoints?",
+        "default_assumption": "Write endpoints require an API key (X-API-Key); redirects and stats are public.",
+        "severity": "medium",
+        "answer": null,
+        "dimension": "auth"
+      },
+      {
+        "id": "Q6",
+        "term": "secure",
+        "category": "vague_term",
+        "question": "'secure' is not measurable. Which visitor data may analytics store? (raw IPs are personal data under GDPR)",
+        "default_assumption": "Never store raw IPs: keep a salted, daily-rotating hash for unique-visitor counts.",
+        "severity": "medium",
+        "answer": null,
+        "dimension": "privacy"
+      },
+      {
+        "id": "Q7",
+        "term": "track stuff",
+        "category": "vague_term",
+        "question": "'track stuff' is not measurable. How long must raw click events be retained?",
+        "default_assumption": "Raw click events 90 days; daily aggregates kept for the life of the link.",
+        "severity": "medium",
+        "answer": null,
+        "dimension": "retention"
+      },
+      {
+        "id": "Q8",
+        "term": "track stuff",
+        "category": "vague_term",
+        "question": "'track stuff' is not measurable. Which analytics are required (clicks, uniques, referrers, devices, geography)?",
+        "default_assumption": "Total and daily clicks, unique visitors, top referrer hosts, user-agent class. Geo-IP is out of scope for v1 (needs a licensed database).",
+        "severity": "medium",
+        "answer": null,
+        "dimension": "analytics_scope"
+      },
+      {
+        "id": "Q9",
+        "term": "secure",
+        "category": "vague_term",
+        "question": "'secure' is not measurable. What creation rate per client is acceptable before throttling?",
+        "default_assumption": "60 link creations per minute per API key (or per IP when keys are disabled).",
+        "severity": "medium",
+        "answer": null,
+        "dimension": "rate_limit"
+      },
+      {
+        "id": "Q10",
+        "term": "short-code format",
+        "category": "missing_nfr",
+        "question": "How long may short codes be, and must they be unguessable?",
+        "default_assumption": "7-character random base62 codes (62^7 = 3.5e12), unguessable, no sequential IDs.",
+        "severity": "low",
+        "answer": null,
+        "dimension": "code_length"
+      },
+      {
+        "id": "Q11",
+        "term": "default expiry",
+        "category": "missing_nfr",
+        "question": "Should links expire by default? If so after how many days?",
+        "default_assumption": "Links never expire unless the caller sets ttl_seconds.",
+        "severity": "low",
+        "answer": null,
+        "dimension": "expiry_default"
+      },
+      {
+        "id": "Q12",
+        "term": "custom aliases",
+        "category": "missing_nfr",
+        "question": "Are caller-chosen custom aliases allowed?",
+        "default_assumption": "Yes - custom aliases allowed, first-come-first-served, never overwritten.",
+        "severity": "low",
+        "answer": null,
+        "dimension": "aliases"
+      },
+      {
+        "id": "Q13",
+        "term": "stuff",
+        "category": "vague_term",
+        "question": "The requirement uses open-ended wording ('stuff'). What exactly is in scope?",
+        "default_assumption": "Scope is limited to the capabilities listed in the normalised requirement.",
+        "severity": "medium",
+        "answer": null,
+        "dimension": ""
+      },
+      {
+        "id": "Q14",
+        "term": "simple",
+        "category": "vague_term",
+        "question": "'simple' is subjective. What observable property should it translate to?",
+        "default_assumption": "Interpreted as: documented API, consistent errors, sensible defaults.",
+        "severity": "low",
+        "answer": null,
+        "dimension": ""
+      }
+    ],
+    "out_of_scope": [
+      "User accounts / UI dashboard",
+      "Geo-IP enrichment",
+      "Custom domains per tenant",
+      "Malware/phishing reputation lookups (documented as production follow-up)"
+    ],
+    "target_repo": null,
+    "settings": {
+      "require_api_key": true,
+      "analytics_ip_mode": "hash",
+      "analytics_retention_days": 90,
+      "create_rate_per_min": 60,
+      "code_length": 7,
+      "default_ttl_days": 0,
+      "allow_custom_alias": true
+    }
+  },
+  "plans": [],
+  "specs": [
+    {
+      "id": "understand",
+      "title": "Interpret requirement, detect ambiguity, normalise",
+      "agent": "requirements",
+      "depends_on": [],
+      "params": {},
+      "critical": true,
+      "max_retries": 2,
+      "gate": "requirements",
+      "always_run": false,
+      "rationale": "Nothing is built on an unconfirmed understanding."
+    },
+    {
+      "id": "plan",
+      "title": "Decompose into a task DAG",
+      "agent": "planner",
+      "depends_on": [
+        "understand"
+      ],
+      "params": {
+        "stage": "initial"
+      },
+      "critical": true,
+      "max_retries": 2,
+      "gate": "plan",
+      "always_run": false,
+      "rationale": "Humans approve the plan before execution."
+    },
+    {
+      "id": "escalate",
+      "title": "Partial summary if the run stops before planning completes",
+      "agent": "reporter",
+      "depends_on": [
+        "plan"
+      ],
+      "params": {
+        "mode": "escalation"
+      },
+      "critical": true,
+      "max_retries": 2,
+      "gate": null,
+      "always_run": true,
+      "rationale": "A stopped run must still leave a reviewable record."
+    }
+  ],
+  "records": {
+    "understand": {
+      "id": "understand",
+      "status": "failed",
+      "attempts": 1,
+      "started_at": 1794665480.895643,
+      "finished_at": 1794665480.907393,
+      "error": "rejected at gate 'requirements' by policy:auto: rejected by policy: Q1 (high) needs a human answer: This reads like a url shortener service but the wording is indirect. Confirm that is the intended system?",
+      "notes": [
+        "kind=greenfield domain=url_shortener confidence=0.33",
+        "3 stated / 7 assumed capabilities, 14 ambiguities, 12 acceptance criteria"
+      ]
+    },
+    "plan": {
+      "id": "plan",
+      "status": "skipped",
+      "attempts": 0,
+      "started_at": null,
+      "finished_at": null,
+      "error": "upstream failure",
+      "notes": []
+    },
+    "escalate": {
+      "id": "escalate",
+      "status": "running",
+      "attempts": 1,
+      "started_at": 1794665480.9134133,
+      "finished_at": null,
+      "error": null,
+      "notes": []
+    }
+  },
+  "validation": null,
+  "risks": [],
+  "tradeoffs": [],
+  "failure_scenarios": [],
+  "strategy": {},
+  "gates": [
+    {
+      "gate": "requirements",
+      "approved": false,
+      "decided_by": "policy:auto",
+      "comment": "rejected by policy: Q1 (high) needs a human answer: This reads like a url shortener service but the wording is indirect. Confirm that is the intended system?",
+      "answers": {},
+      "at": 1794665480.9085453
+    }
+  ],
+  "artifacts": [],
+  "impact": null,
+  "baseline": null,
+  "repair_cycles": 0,
+  "repair_history": [],
+  "rejected_answers": [],
+  "release_decision": null,
+  "llm": "none (deterministic agents)",
+  "path": "ENGINEERING_SUMMARY.md"
+}

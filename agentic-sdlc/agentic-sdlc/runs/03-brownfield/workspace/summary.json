@@ -1,0 +1,914 @@
+{
+  "run_id": "03-brownfield",
+  "status": "ready_for_review",
+  "failed_critical": [],
+  "requirement": {
+    "raw": "In the existing legacy-links service, add link expiration support: callers can pass an\noptional TTL when creating a link, and expired links must stop redirecting. Also fix the bug\nwhere creating a link with a custom alias that already exists silently overwrites the\noriginal link.",
+    "title": "In the existing legacy-links service, add link expiration support: callers can pass an",
+    "kind": "brownfield",
+    "domain": "url_shortener",
+    "summary": "Change an existing URL shortener service: Fix: custom alias silently overwrites an existing link; Feature: optional link expiration (TTL).",
+    "capabilities": [
+      "Fix: custom alias silently overwrites an existing link (stated)",
+      "Feature: optional link expiration (TTL) (stated)"
+    ],
+    "nfrs": {
+      "Scale targets": "Design target 10k redirects/s peak, 100 creates/s, ~1B links over 5 years (read:write ~ 100:1). The prototype is sized for one node; the design scales out.",
+      "Latency objective": "p99 redirect latency < 50 ms inside the service (cache hit < 5 ms).",
+      "Availability objective": "99.95% for redirects; creation and analytics may degrade first (analytics is best-effort and must never block redirects).",
+      "Write access control": "Write endpoints require an API key (X-API-Key); redirects and stats are public.",
+      "Analytics privacy": "Never store raw IPs: keep a salted, daily-rotating hash for unique-visitor counts.",
+      "Analytics retention": "Raw click events 90 days; daily aggregates kept for the life of the link.",
+      "Analytics dimensions": "Total and daily clicks, unique visitors, top referrer hosts, user-agent class. Geo-IP is out of scope for v1 (needs a licensed database).",
+      "Abuse limits": "60 link creations per minute per API key (or per IP when keys are disabled).",
+      "Short-code format": "7-character random base62 codes (62^7 = 3.5e12), unguessable, no sequential IDs.",
+      "Default expiry": "Links never expire unless the caller sets ttl_seconds."
+    },
+    "acceptance_criteria": [
+      {
+        "id": "AC-BUG-ALIAS",
+        "text": "Creating a link with an alias that already exists fails (AliasTaken / HTTP 409) and the original link is unchanged; random-code collisions are retried instead of overwriting",
+        "kind": "regression"
+      },
+      {
+        "id": "AC-EXP-TTL",
+        "text": "POST /links accepts an optional positive integer ttl_seconds; an expired link returns 410 Gone",
+        "kind": "functional"
+      },
+      {
+        "id": "AC-EXP-COMPAT",
+        "text": "Links created without ttl_seconds never expire (backward compatible API and behaviour)",
+        "kind": "functional"
+      },
+      {
+        "id": "AC-EXP-MIGRATION",
+        "text": "Existing databases without an expires_at column are migrated automatically and idempotently",
+        "kind": "functional"
+      },
+      {
+        "id": "AC-REGRESSION",
+        "text": "All pre-existing tests still pass on the changed code base",
+        "kind": "regression"
+      }
+    ],
+    "ambiguities": [
+      {
+        "id": "Q1",
+        "term": "expiration",
+        "category": "missing_scope",
+        "question": "Should links that already exist get an expiry (backfill), and what status should an expired link return?",
+        "default_assumption": "Existing links never expire; expired links return 410 Gone.",
+        "severity": "medium",
+        "answer": null,
+        "dimension": ""
+      }
+    ],
+    "out_of_scope": [
+      "User accounts / UI dashboard",
+      "Geo-IP enrichment",
+      "Custom domains per tenant",
+      "Malware/phishing reputation lookups (documented as production follow-up)"
+    ],
+    "target_repo": "examples/legacy_links",
+    "settings": {}
+  },
+  "plans": [
+    {
+      "tasks": [
+        {
+          "id": "analyze_codebase",
+          "title": "Snapshot repo, map modules/routes/data model, baseline tests, impact analysis",
+          "agent": "codebase",
+          "depends_on": [
+            "plan"
+          ],
+          "params": {},
+          "critical": true,
+          "max_retries": 2,
+          "gate": null,
+          "always_run": false,
+          "rationale": "Never change code you have not mapped."
+        },
+        {
+          "id": "plan_changes",
+          "title": "Plan concrete change set from impact analysis",
+          "agent": "planner",
+          "depends_on": [
+            "analyze_codebase"
+          ],
+          "params": {
+            "stage": "changes"
+          },
+          "critical": true,
+          "max_retries": 2,
+          "gate": "change_plan",
+          "always_run": false,
+          "rationale": "Second planning stage: the change set depends on the code."
+        }
+      ],
+      "rationale": "Brownfield: analyse first, then plan concrete edits against the real code, with a human gate on the change plan."
+    },
+    {
+      "tasks": [
+        {
+          "id": "change_fix_alias_overwrite",
+          "title": "Fix: custom alias silently overwrites an existing link",
+          "agent": "codegen",
+          "depends_on": [
+            "plan_changes"
+          ],
+          "params": {
+            "mode": "brownfield",
+            "recipe": "fix_alias_overwrite"
+          },
+          "critical": true,
+          "max_retries": 2,
+          "gate": null,
+          "always_run": false,
+          "rationale": "independent"
+        },
+        {
+          "id": "change_add_expiration",
+          "title": "Feature: optional link expiration (TTL)",
+          "agent": "codegen",
+          "depends_on": [
+            "plan_changes",
+            "change_fix_alias_overwrite"
+          ],
+          "params": {
+            "mode": "brownfield",
+            "recipe": "add_expiration"
+          },
+          "critical": true,
+          "max_retries": 2,
+          "gate": null,
+          "always_run": false,
+          "rationale": "serialised after change_fix_alias_overwrite (overlapping files)"
+        },
+        {
+          "id": "gen_regression_tests",
+          "title": "Generate regression + feature tests",
+          "agent": "testgen",
+          "depends_on": [
+            "plan_changes"
+          ],
+          "params": {
+            "mode": "brownfield"
+          },
+          "critical": true,
+          "max_retries": 2,
+          "gate": null,
+          "always_run": false,
+          "rationale": "Tests derive from acceptance criteria; parallel to edits."
+        },
+        {
+          "id": "gen_docs",
+          "title": "Changelog, change notes, impact report",
+          "agent": "docgen",
+          "depends_on": [
+            "change_fix_alias_overwrite",
+            "change_add_expiration"
+          ],
+          "params": {
+            "mode": "brownfield"
+          },
+          "critical": false,
+          "max_retries": 2,
+          "gate": null,
+          "always_run": false,
+          "rationale": ""
+        },
+        {
+          "id": "validate",
+          "title": "Validate: regression vs baseline, new tests, safety, scope",
+          "agent": "validator",
+          "depends_on": [
+            "change_fix_alias_overwrite",
+            "change_add_expiration",
+            "gen_regression_tests"
+          ],
+          "params": {
+            "mode": "brownfield"
+          },
+          "critical": true,
+          "max_retries": 2,
+          "gate": null,
+          "always_run": false,
+          "rationale": ""
+        },
+        {
+          "id": "risk_review",
+          "title": "Risk register, trade-offs, failure scenarios",
+          "agent": "risk",
+          "depends_on": [
+            "validate"
+          ],
+          "params": {},
+          "critical": true,
+          "max_retries": 2,
+          "gate": null,
+          "always_run": true,
+          "rationale": ""
+        },
+        {
+          "id": "report",
+          "title": "Engineering summary and release decision",
+          "agent": "reporter",
+          "depends_on": [
+            "risk_review",
+            "gen_docs"
+          ],
+          "params": {},
+          "critical": true,
+          "max_retries": 2,
+          "gate": "release",
+          "always_run": true,
+          "rationale": ""
+        }
+      ],
+      "rationale": "2 change(s) ordered by priority; edits to shared files are serialised to avoid conflicting anchors, tests generated in parallel."
+    }
+  ],
+  "specs": [
+    {
+      "id": "understand",
+      "title": "Interpret requirement, detect ambiguity, normalise",
+      "agent": "requirements",
+      "depends_on": [],
+      "params": {},
+      "critical": true,
+      "max_retries": 2,
+      "gate": "requirements",
+      "always_run": false,
+      "rationale": "Nothing is built on an unconfirmed understanding."
+    },
+    {
+      "id": "plan",
+      "title": "Decompose into a task DAG",
+      "agent": "planner",
+      "depends_on": [
+        "understand"
+      ],
+      "params": {
+        "stage": "initial"
+      },
+      "critical": true,
+      "max_retries": 2,
+      "gate": "plan",
+      "always_run": false,
+      "rationale": "Humans approve the plan before execution."
+    },
+    {
+      "id": "escalate",
+      "title": "Partial summary if the run stops before planning completes",
+      "agent": "reporter",
+      "depends_on": [
+        "plan"
+      ],
+      "params": {
+        "mode": "escalation"
+      },
+      "critical": true,
+      "max_retries": 2,
+      "gate": null,
+      "always_run": true,
+      "rationale": "A stopped run must still leave a reviewable record."
+    },
+    {
+      "id": "analyze_codebase",
+      "title": "Snapshot repo, map modules/routes/data model, baseline tests, impact analysis",
+      "agent": "codebase",
+      "depends_on": [
+        "plan"
+      ],
+      "params": {},
+      "critical": true,
+      "max_retries": 2,
+      "gate": null,
+      "always_run": false,
+      "rationale": "Never change code you have not mapped."
+    },
+    {
+      "id": "plan_changes",
+      "title": "Plan concrete change set from impact analysis",
+      "agent": "planner",
+      "depends_on": [
+        "analyze_codebase"
+      ],
+      "params": {
+        "stage": "changes"
+      },
+      "critical": true,
+      "max_retries": 2,
+      "gate": "change_plan",
+      "always_run": false,
+      "rationale": "Second planning stage: the change set depends on the code."
+    },
+    {
+      "id": "change_fix_alias_overwrite",
+      "title": "Fix: custom alias silently overwrites an existing link",
+      "agent": "codegen",
+      "depends_on": [
+        "plan_changes"
+      ],
+      "params": {
+        "mode": "brownfield",
+        "recipe": "fix_alias_overwrite"
+      },
+      "critical": true,
+      "max_retries": 2,
+      "gate": null,
+      "always_run": false,
+      "rationale": "independent"
+    },
+    {
+      "id": "change_add_expiration",
+      "title": "Feature: optional link expiration (TTL)",
+      "agent": "codegen",
+      "depends_on": [
+        "plan_changes",
+        "change_fix_alias_overwrite"
+      ],
+      "params": {
+        "mode": "brownfield",
+        "recipe": "add_expiration"
+      },
+      "critical": true,
+      "max_retries": 2,
+      "gate": null,
+      "always_run": false,
+      "rationale": "serialised after change_fix_alias_overwrite (overlapping files)"
+    },
+    {
+      "id": "gen_regression_tests",
+      "title": "Generate regression + feature tests",
+      "agent": "testgen",
+      "depends_on": [
+        "plan_changes"
+      ],
+      "params": {
+        "mode": "brownfield"
+      },
+      "critical": true,
+      "max_retries": 2,
+      "gate": null,
+      "always_run": false,
+      "rationale": "Tests derive from acceptance criteria; parallel to edits."
+    },
+    {
+      "id": "gen_docs",
+      "title": "Changelog, change notes, impact report",
+      "agent": "docgen",
+      "depends_on": [
+        "change_fix_alias_overwrite",
+        "change_add_expiration"
+      ],
+      "params": {
+        "mode": "brownfield"
+      },
+      "critical": false,
+      "max_retries": 2,
+      "gate": null,
+      "always_run": false,
+      "rationale": ""
+    },
+    {
+      "id": "validate",
+      "title": "Validate: regression vs baseline, new tests, safety, scope",
+      "agent": "validator",
+      "depends_on": [
+        "change_fix_alias_overwrite",
+        "change_add_expiration",
+        "gen_regression_tests"
+      ],
+      "params": {
+        "mode": "brownfield"
+      },
+      "critical": true,
+      "max_retries": 2,
+      "gate": null,
+      "always_run": false,
+      "rationale": ""
+    },
+    {
+      "id": "risk_review",
+      "title": "Risk register, trade-offs, failure scenarios",
+      "agent": "risk",
+      "depends_on": [
+        "validate"
+      ],
+      "params": {},
+      "critical": true,
+      "max_retries": 2,
+      "gate": null,
+      "always_run": true,
+      "rationale": ""
+    },
+    {
+      "id": "report",
+      "title": "Engineering summary and release decision",
+      "agent": "reporter",
+      "depends_on": [
+        "risk_review",
+        "gen_docs"
+      ],
+      "params": {},
+      "critical": true,
+      "max_retries": 2,
+      "gate": "release",
+      "always_run": true,
+      "rationale": ""
+    }
+  ],
+  "records": {
+    "understand": {
+      "id": "understand",
+      "status": "succeeded",
+      "attempts": 1,
+      "started_at": 1794494649.9142148,
+      "finished_at": 1794494649.91833,
+      "error": null,
+      "notes": [
+        "kind=brownfield domain=url_shortener confidence=0.83",
+        "2 stated / 0 assumed capabilities, 1 ambiguities, 5 acceptance criteria"
+      ]
+    },
+    "plan": {
+      "id": "plan",
+      "status": "succeeded",
+      "attempts": 1,
+      "started_at": 1794494649.9189298,
+      "finished_at": 1794494649.9191577,
+      "error": null,
+      "notes": [
+        "2 tasks planned (initial)"
+      ]
+    },
+    "escalate": {
+      "id": "escalate",
+      "status": "succeeded",
+      "attempts": 1,
+      "started_at": 1794494649.919689,
+      "finished_at": 1794494649.9201114,
+      "error": null,
+      "notes": [
+        "not needed: plan approved, full report will follow"
+      ]
+    },
+    "analyze_codebase": {
+      "id": "analyze_codebase",
+      "status": "succeeded",
+      "attempts": 1,
+      "started_at": 1794494649.9197361,
+      "finished_at": 1794494650.1624556,
+      "error": null,
+      "notes": [
+        "7 modules, 3 routes, 1 tables; baseline 5/5 passing",
+        "impacted files: links/app.py, links/models.py, links/service.py, links/store.py"
+      ]
+    },
+    "plan_changes": {
+      "id": "plan_changes",
+      "status": "succeeded",
+      "attempts": 1,
+      "started_at": 1794494650.164041,
+      "finished_at": 1794494650.1642988,
+      "error": null,
+      "notes": [
+        "7 tasks planned (changes)"
+      ]
+    },
+    "change_fix_alias_overwrite": {
+      "id": "change_fix_alias_overwrite",
+      "status": "succeeded",
+      "attempts": 1,
+      "started_at": 1794494650.1654296,
+      "finished_at": 1794494650.172831,
+      "error": null,
+      "notes": [
+        "7 file change(s): project/links/app.py, project/links/service.py, project/links/store.py"
+      ]
+    },
+    "change_add_expiration": {
+      "id": "change_add_expiration",
+      "status": "succeeded",
+      "attempts": 1,
+      "started_at": 1794494650.1737528,
+      "finished_at": 1794494650.179417,
+      "error": null,
+      "notes": [
+        "11 file change(s): project/links/app.py, project/links/models.py, project/links/service.py, project/links/store.py"
+      ]
+    },
+    "gen_regression_tests": {
+      "id": "gen_regression_tests",
+      "status": "succeeded",
+      "attempts": 1,
+      "started_at": 1794494650.1655095,
+      "finished_at": 1794494650.17052,
+      "error": null,
+      "notes": [
+        "8 test functions across 2 files; covers 4 acceptance criteria"
+      ]
+    },
+    "gen_docs": {
+      "id": "gen_docs",
+      "status": "succeeded",
+      "attempts": 1,
+      "started_at": 1794494650.180251,
+      "finished_at": 1794494650.181864,
+      "error": null,
+      "notes": [
+        "2 documents"
+      ]
+    },
+    "validate": {
+      "id": "validate",
+      "status": "succeeded",
+      "attempts": 1,
+      "started_at": 1794494650.1803155,
+      "finished_at": 1794494650.5205052,
+      "error": null,
+      "notes": [
+        "tests 17/17 passed; 0 non-blocking finding(s)"
+      ]
+    },
+    "risk_review": {
+      "id": "risk_review",
+      "status": "succeeded",
+      "attempts": 1,
+      "started_at": 1794494650.5220978,
+      "finished_at": 1794494650.5223315,
+      "error": null,
+      "notes": [
+        "4 risks (1 from unconfirmed assumptions)"
+      ]
+    },
+    "report": {
+      "id": "report",
+      "status": "succeeded",
+      "attempts": 1,
+      "started_at": 1794494650.523658,
+      "finished_at": 1794494650.5255995,
+      "error": null,
+      "notes": [
+        "summary written; status=ready_for_review"
+      ]
+    }
+  },
+  "validation": {
+    "mode": "brownfield",
+    "changed_files": [
+      "CHANGELOG.md",
+      "links/app.py",
+      "links/models.py",
+      "links/service.py",
+      "links/store.py",
+      "tests/test_alias_regression.py",
+      "tests/test_expiration.py"
+    ],
+    "diff_stats": {
+      "added": 219,
+      "removed": 17
+    },
+    "baseline": {
+      "total": 5,
+      "passed": 5,
+      "failed": 0,
+      "errors": 0,
+      "skipped": 0,
+      "duration_s": 0.0,
+      "failures": []
+    },
+    "tests": {
+      "total": 17,
+      "passed": 17,
+      "failed": 0,
+      "errors": 0,
+      "skipped": 0,
+      "duration_s": 0.02,
+      "failures": []
+    },
+    "regressions": [],
+    "traceability": {
+      "AC-BUG-ALIAS": {
+        "text": "Creating a link with an alias that already exists fails (AliasTaken / HTTP 409) and the original link is unchanged; random-code collisions are retried instead of overwriting",
+        "tests": [
+          "tests/test_alias_regression.py::test_duplicate_alias_is_rejected_and_original_kept",
+          "tests/test_alias_regression.py::test_duplicate_alias_returns_409_over_http",
+          "tests/test_alias_regression.py::test_random_code_collision_is_retried"
+        ]
+      },
+      "AC-EXP-TTL": {
+        "text": "POST /links accepts an optional positive integer ttl_seconds; an expired link returns 410 Gone",
+        "tests": [
+          "tests/test_expiration.py::test_expired_link_returns_410_over_http",
+          "tests/test_expiration.py::test_invalid_ttl_rejected",
+          "tests/test_expiration.py::test_link_with_ttl_expires"
+        ]
+      },
+      "AC-EXP-COMPAT": {
+        "text": "Links created without ttl_seconds never expire (backward compatible API and behaviour)",
+        "tests": [
+          "tests/test_expiration.py::test_links_without_ttl_never_expire"
+        ]
+      },
+      "AC-EXP-MIGRATION": {
+        "text": "Existing databases without an expires_at column are migrated automatically and idempotently",
+        "tests": [
+          "tests/test_expiration.py::test_existing_database_is_migrated"
+        ]
+      },
+      "AC-REGRESSION": {
+        "text": "All pre-existing tests still pass on the changed code base",
+        "tests": [
+          "baseline comparison (validator)"
+        ]
+      }
+    },
+    "tools": {
+      "ruff": {
+        "available": true,
+        "ok": true,
+        "issues": []
+      }
+    },
+    "checks": [
+      "change_scope",
+      "static_safety",
+      "lint",
+      "regression_vs_baseline",
+      "tests",
+      "traceability"
+    ],
+    "findings": [],
+    "blocking": [],
+    "passed": true
+  },
+  "risks": [
+    {
+      "id": "R-BEHAVIOUR",
+      "title": "Clients relying on alias overwrite now receive 409",
+      "likelihood": "medium",
+      "impact": "medium",
+      "mitigation": "Called out in change notes/CHANGELOG; communicate before rollout",
+      "category": "compatibility"
+    },
+    {
+      "id": "R-MIGRATION",
+      "title": "Schema migration on start-up against a large/locked database",
+      "likelihood": "low",
+      "impact": "medium",
+      "mitigation": "ALTER TABLE ADD COLUMN is metadata-only in SQLite; idempotent; tested against an old-schema database",
+      "category": "data"
+    },
+    {
+      "id": "R-COVERAGE",
+      "title": "Legacy suite is small; untested legacy paths may hide regressions",
+      "likelihood": "medium",
+      "impact": "medium",
+      "mitigation": "Baseline comparison + new tests; recommend characterization tests for redirect/info paths",
+      "category": "quality"
+    },
+    {
+      "id": "R-ASSUME-1",
+      "title": "Assumption not confirmed by a human: expiration",
+      "likelihood": "medium",
+      "impact": "medium",
+      "mitigation": "Defaulted to: Existing links never expire; expired links return 410 Gone.. Confirm before production; the value is configurable.",
+      "category": "requirements"
+    }
+  ],
+  "tradeoffs": [],
+  "failure_scenarios": [],
+  "strategy": {
+    "Automated (this run)": [
+      "Baseline: run the existing suite on an untouched copy before any edit",
+      "Regression: every baseline-passing test must still pass after the change",
+      "New tests per acceptance criterion (feature, bug regression, migration)",
+      "Change-scope check against the approved impact analysis; static safety + lint on changed files",
+      "Reviewable unified diff (review/changes.patch)"
+    ],
+    "Before merge": [
+      "Human code review of the diff and change notes",
+      "Run against a copy of the production database (migration rehearsal)"
+    ],
+    "After deploy": [
+      "Watch 409/410 rates and 5xx on POST /links and GET /{code}",
+      "Rollback plan: previous build ignores the new column"
+    ]
+  },
+  "gates": [
+    {
+      "gate": "requirements",
+      "approved": true,
+      "decided_by": "policy:auto",
+      "comment": "accepted 1 default assumption(s); flagged in summary",
+      "answers": {},
+      "at": 1794494649.918474
+    },
+    {
+      "gate": "plan",
+      "approved": true,
+      "decided_by": "policy:auto",
+      "comment": "",
+      "answers": {},
+      "at": 1794494649.9192364
+    },
+    {
+      "gate": "change_plan",
+      "approved": true,
+      "decided_by": "policy:auto",
+      "comment": "",
+      "answers": {},
+      "at": 1794494650.164399
+    },
+    {
+      "gate": "release",
+      "approved": true,
+      "decided_by": "policy:auto",
+      "comment": "",
+      "answers": {},
+      "at": 1794494650.525796
+    }
+  ],
+  "artifacts": [
+    {
+      "path": "project/CHANGELOG.md",
+      "task": "gen_docs",
+      "lines": 16,
+      "sha": "231ff49248f0",
+      "op": "create"
+    },
+    {
+      "path": "project/links/app.py",
+      "task": "change_add_expiration",
+      "lines": 57,
+      "sha": "45f11e215cf9",
+      "op": "edit"
+    },
+    {
+      "path": "project/links/models.py",
+      "task": "change_add_expiration",
+      "lines": 11,
+      "sha": "97fe2c7dbb58",
+      "op": "edit"
+    },
+    {
+      "path": "project/links/service.py",
+      "task": "change_add_expiration",
+      "lines": 69,
+      "sha": "bffa572b8562",
+      "op": "edit"
+    },
+    {
+      "path": "project/links/store.py",
+      "task": "change_add_expiration",
+      "lines": 63,
+      "sha": "4d3f7237dd58",
+      "op": "edit"
+    },
+    {
+      "path": "project/tests/test_alias_regression.py",
+      "task": "gen_regression_tests",
+      "lines": 50,
+      "sha": "75bc219fd015",
+      "op": "create"
+    },
+    {
+      "path": "project/tests/test_expiration.py",
+      "task": "gen_regression_tests",
+      "lines": 83,
+      "sha": "b9666b0f156c",
+      "op": "create"
+    },
+    {
+      "path": "review/change_notes.md",
+      "task": "gen_docs",
+      "lines": 22,
+      "sha": "0c90cdb8707a",
+      "op": "create"
+    }
+  ],
+  "impact": {
+    "recipes": [
+      "fix_alias_overwrite",
+      "add_expiration"
+    ],
+    "roles": {
+      "http": "links/app.py",
+      "model": "links/models.py",
+      "store": "links/store.py",
+      "service": "links/service.py"
+    },
+    "files": [
+      "links/app.py",
+      "links/models.py",
+      "links/service.py",
+      "links/store.py"
+    ],
+    "files_by_recipe": {
+      "fix_alias_overwrite": [
+        "links/app.py",
+        "links/service.py",
+        "links/store.py"
+      ],
+      "add_expiration": [
+        "links/app.py",
+        "links/models.py",
+        "links/service.py",
+        "links/store.py"
+      ]
+    },
+    "direct_symbols": {
+      "links/app.py::create": [
+        "add_expiration",
+        "fix_alias_overwrite"
+      ],
+      "links/app.py::redirect": [
+        "add_expiration"
+      ],
+      "links/models.py::Link": [
+        "add_expiration"
+      ],
+      "links/service.py::LinkService.resolve": [
+        "add_expiration"
+      ],
+      "links/service.py::LinkService.shorten": [
+        "add_expiration",
+        "fix_alias_overwrite"
+      ],
+      "links/store.py::LinkStore.__init__": [
+        "add_expiration"
+      ],
+      "links/store.py::LinkStore.get": [
+        "add_expiration"
+      ],
+      "links/store.py::LinkStore.save": [
+        "add_expiration",
+        "fix_alias_overwrite"
+      ]
+    },
+    "ripple_symbols": [
+      "links/app.py::app",
+      "links/app.py::info",
+      "links/app.py::make_app",
+      "links/service.py::LinkService.info"
+    ],
+    "apis": [
+      "GET /links/{code}",
+      "GET /{code}",
+      "POST /links"
+    ],
+    "data": {
+      "links": [
+        "code",
+        "target_url",
+        "created_at",
+        "clicks"
+      ]
+    },
+    "regression_tests": [
+      "tests/__init__.py",
+      "tests/test_service.py"
+    ],
+    "impacted_tests": [
+      "tests/test_service.py::test_clicks_are_counted",
+      "tests/test_service.py::test_custom_alias",
+      "tests/test_service.py::test_rejects_non_http",
+      "tests/test_service.py::test_shorten_and_resolve",
+      "tests/test_service.py::test_unknown_code"
+    ],
+    "schema_change": true
+  },
+  "baseline": {
+    "total": 5,
+    "passed": 5,
+    "failed": 0,
+    "errors": 0,
+    "skipped": 0,
+    "duration_s": 0.001,
+    "failures": [],
+    "passed_tests": [
+      "tests.test_service::test_shorten_and_resolve",
+      "tests.test_service::test_clicks_are_counted",
+      "tests.test_service::test_rejects_non_http",
+      "tests.test_service::test_unknown_code",
+      "tests.test_service::test_custom_alias"
+    ],
+    "output_tail": ".....                                                                    [100%]\n5 passed in 0.01s"
+  },
+  "repair_cycles": 0,
+  "repair_history": [],
+  "rejected_answers": [],
+  "release_decision": {
+    "gate": "release",
+    "approved": true,
+    "decided_by": "policy:auto",
+    "comment": "",
+    "answers": {},
+    "at": 1794494650.525796
+  },
+  "llm": "none (deterministic agents)",
+  "path": "ENGINEERING_SUMMARY.md"
+}

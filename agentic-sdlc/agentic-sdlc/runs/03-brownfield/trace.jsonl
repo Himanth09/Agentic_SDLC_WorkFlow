@@ -1,0 +1,36 @@
+{"t": 0.0, "event": "run_started", "run_id": "03-brownfield", "tasks": 3}
+{"t": 0.0, "event": "task_started", "task": "understand", "agent": "requirements", "attempt": 1}
+{"t": 0.004, "event": "task_succeeded", "task": "understand", "ms": 4, "outputs": ["domain_confidence", "requirement"]}
+{"t": 0.004, "event": "gate_requested", "gate": "requirements", "task": "understand", "questions": 1, "blocking": 0}
+{"t": 0.004, "event": "gate_decided", "gate": "requirements", "approved": true, "by": "policy:auto", "comment": "accepted 1 default assumption(s); flagged in summary"}
+{"t": 0.005, "event": "task_started", "task": "plan", "agent": "planner", "attempt": 1}
+{"t": 0.005, "event": "task_succeeded", "task": "plan", "ms": 0, "outputs": ["plan", "plans"]}
+{"t": 0.005, "event": "gate_requested", "gate": "plan", "task": "plan", "questions": 0, "blocking": 0}
+{"t": 0.005, "event": "gate_decided", "gate": "plan", "approved": true, "by": "policy:auto", "comment": ""}
+{"t": 0.005, "event": "plan_extended", "by": "plan", "added": ["analyze_codebase", "plan_changes"]}
+{"t": 0.006, "event": "task_started", "task": "escalate", "agent": "reporter", "attempt": 1}
+{"t": 0.006, "event": "task_started", "task": "analyze_codebase", "agent": "codebase", "attempt": 1}
+{"t": 0.006, "event": "task_succeeded", "task": "escalate", "ms": 0, "outputs": []}
+{"t": 0.248, "event": "task_succeeded", "task": "analyze_codebase", "ms": 242, "outputs": ["baseline", "codebase_model", "impact", "source_repo"]}
+{"t": 0.25, "event": "task_started", "task": "plan_changes", "agent": "planner", "attempt": 1}
+{"t": 0.25, "event": "task_succeeded", "task": "plan_changes", "ms": 0, "outputs": ["change_plan", "plans"]}
+{"t": 0.25, "event": "gate_requested", "gate": "change_plan", "task": "plan_changes", "questions": 0, "blocking": 0}
+{"t": 0.25, "event": "gate_decided", "gate": "change_plan", "approved": true, "by": "policy:auto", "comment": ""}
+{"t": 0.25, "event": "plan_extended", "by": "plan_changes", "added": ["change_fix_alias_overwrite", "change_add_expiration", "gen_regression_tests", "gen_docs", "validate", "risk_review", "report"]}
+{"t": 0.251, "event": "task_started", "task": "change_fix_alias_overwrite", "agent": "codegen", "attempt": 1}
+{"t": 0.251, "event": "task_started", "task": "gen_regression_tests", "agent": "testgen", "attempt": 1}
+{"t": 0.257, "event": "task_succeeded", "task": "gen_regression_tests", "ms": 5, "outputs": []}
+{"t": 0.259, "event": "task_succeeded", "task": "change_fix_alias_overwrite", "ms": 7, "outputs": []}
+{"t": 0.26, "event": "task_started", "task": "change_add_expiration", "agent": "codegen", "attempt": 1}
+{"t": 0.265, "event": "task_succeeded", "task": "change_add_expiration", "ms": 5, "outputs": []}
+{"t": 0.266, "event": "task_started", "task": "gen_docs", "agent": "docgen", "attempt": 1}
+{"t": 0.266, "event": "task_started", "task": "validate", "agent": "validator", "attempt": 1}
+{"t": 0.268, "event": "task_succeeded", "task": "gen_docs", "ms": 1, "outputs": []}
+{"t": 0.607, "event": "task_succeeded", "task": "validate", "ms": 340, "outputs": ["validation"]}
+{"t": 0.608, "event": "task_started", "task": "risk_review", "agent": "risk", "attempt": 1}
+{"t": 0.608, "event": "task_succeeded", "task": "risk_review", "ms": 0, "outputs": ["failure_scenarios", "risks", "validation_strategy"]}
+{"t": 0.61, "event": "task_started", "task": "report", "agent": "reporter", "attempt": 1}
+{"t": 0.612, "event": "task_succeeded", "task": "report", "ms": 1, "outputs": ["summary"]}
+{"t": 0.612, "event": "gate_requested", "gate": "release", "task": "report", "questions": 0, "blocking": 0}
+{"t": 0.612, "event": "gate_decided", "gate": "release", "approved": true, "by": "policy:auto", "comment": ""}
+{"t": 0.615, "event": "run_finished", "ok": true, "executions": 12, "repair_cycles": 0}

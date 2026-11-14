@@ -1,0 +1,39 @@
+{
+  "run_id": "demo-ambiguous",
+  "repair_cycles": 0,
+  "executions": 2,
+  "tasks": [
+    {
+      "id": "understand",
+      "status": "failed",
+      "attempts": 1,
+      "started_at": 1794665480.895643,
+      "finished_at": 1794665480.907393,
+      "error": "rejected at gate 'requirements' by policy:auto: rejected by policy: Q1 (high) needs a human answer: This reads like a url shortener service but the wording is indirect. Confirm that is the intended system?",
+      "notes": [
+        "kind=greenfield domain=url_shortener confidence=0.33",
+        "3 stated / 7 assumed capabilities, 14 ambiguities, 12 acceptance criteria"
+      ]
+    },
+    {
+      "id": "plan",
+      "status": "skipped",
+      "attempts": 0,
+      "started_at": null,
+      "finished_at": null,
+      "error": "upstream failure",
+      "notes": []
+    },
+    {
+      "id": "escalate",
+      "status": "succeeded",
+      "attempts": 1,
+      "started_at": 1794665480.9134133,
+      "finished_at": 1794665480.920068,
+      "error": null,
+      "notes": [
+        "run stopped before planning; escalation summary written"
+      ]
+    }
+  ]
+}

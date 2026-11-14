@@ -1,0 +1,10 @@
+{"t": 0.0, "event": "run_started", "run_id": "demo-ambiguous", "tasks": 3}
+{"t": 0.001, "event": "task_started", "task": "understand", "agent": "requirements", "attempt": 1}
+{"t": 0.013, "event": "task_succeeded", "task": "understand", "ms": 11, "outputs": ["domain_confidence", "requirement"]}
+{"t": 0.014, "event": "gate_requested", "gate": "requirements", "task": "understand", "questions": 14, "blocking": 1}
+{"t": 0.014, "event": "gate_decided", "gate": "requirements", "approved": false, "by": "policy:auto", "comment": "rejected by policy: Q1 (high) needs a human answer: This reads like a url shortener service but the wording is indirect."}
+{"t": 0.015, "event": "task_failed", "task": "understand", "error": "rejected at gate 'requirements' by policy:auto: rejected by policy: Q1 (high) needs a human answer: This reads like a url shortener service but the wording is indirect. Confirm that is the intended system?"}
+{"t": 0.018, "event": "task_skipped", "task": "plan", "reason": "upstream failure"}
+{"t": 0.019, "event": "task_started", "task": "escalate", "agent": "reporter", "attempt": 1}
+{"t": 0.026, "event": "task_succeeded", "task": "escalate", "ms": 6, "outputs": ["summary"]}
+{"t": 0.029, "event": "run_finished", "ok": false, "executions": 2, "repair_cycles": 0}

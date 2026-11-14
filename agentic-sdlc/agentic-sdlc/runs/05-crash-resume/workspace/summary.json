@@ -1,0 +1,1613 @@
+{
+  "run_id": "05-crash-resume",
+  "status": "ready_for_review",
+  "failed_critical": [],
+  "requirement": {
+    "raw": "Build a scalable URL shortener service with APIs, persistence, and analytics.",
+    "title": "Build a scalable URL shortener service with APIs, persistence, and analytics",
+    "kind": "greenfield",
+    "domain": "url_shortener",
+    "summary": "Build a new URL shortener service: Create a short link for a long URL; Durable storage of links and analytics; Click analytics per link; Horizontal scalability of the redirect path; Versioned REST API with a published contract. Also assumed: 5 capabilities required for production use.",
+    "capabilities": [
+      "Create a short link for a long URL (stated)",
+      "Durable storage of links and analytics (stated)",
+      "Click analytics per link (stated)",
+      "Horizontal scalability of the redirect path (stated)",
+      "Versioned REST API with a published contract (stated)",
+      "Resolve a short code and redirect (HTTP 302) (assumed)",
+      "Reject unsafe or malformed target URLs (assumed)",
+      "Optional custom alias (vanity code) (assumed)",
+      "Optional link expiry (TTL) (assumed)",
+      "Rate limiting and API-key protection of write endpoints (assumed)"
+    ],
+    "nfrs": {
+      "Scale targets": "Design target 10k redirects/s peak, 100 creates/s, ~1B links over 5 years (read:write ~ 100:1). The prototype is sized for one node; the design scales out.",
+      "Latency objective": "p99 redirect latency < 50 ms inside the service (cache hit < 5 ms).",
+      "Availability objective": "99.95% for redirects; creation and analytics may degrade first (analytics is best-effort and must never block redirects).",
+      "Write access control": "Write endpoints require an API key (X-API-Key); redirects and stats are public.",
+      "Analytics privacy": "Never store raw IPs: keep a salted, daily-rotating hash for unique-visitor counts.",
+      "Analytics retention": "Raw click events 90 days; daily aggregates kept for the life of the link.",
+      "Analytics dimensions": "Total and daily clicks, unique visitors, top referrer hosts, user-agent class. Geo-IP is out of scope for v1 (needs a licensed database).",
+      "Abuse limits": "60 link creations per minute per API key (or per IP when keys are disabled).",
+      "Short-code format": "7-character random base62 codes (62^7 = 3.5e12), unguessable, no sequential IDs.",
+      "Default expiry": "Links never expire unless the caller sets ttl_seconds.",
+      "Custom aliases": "Yes - custom aliases allowed, first-come-first-served, never overwritten."
+    },
+    "acceptance_criteria": [
+      {
+        "id": "AC-CREATE",
+        "text": "POST /api/v1/links with a valid http(s) URL returns 201 with a unique short code and short_url",
+        "kind": "functional"
+      },
+      {
+        "id": "AC-REDIRECT",
+        "text": "GET /{code} returns 302 with Location set to the original URL; unknown codes return 404",
+        "kind": "functional"
+      },
+      {
+        "id": "AC-VALIDATE",
+        "text": "Non-http(s), credential-bearing, local or private-network target URLs are rejected with 422",
+        "kind": "security"
+      },
+      {
+        "id": "AC-ALIAS",
+        "text": "A custom alias can be requested; a taken alias returns 409 and never overwrites the existing link",
+        "kind": "functional"
+      },
+      {
+        "id": "AC-EXPIRY",
+        "text": "Links may carry a TTL; expired links return 410 Gone",
+        "kind": "functional"
+      },
+      {
+        "id": "AC-PERSIST",
+        "text": "Links and analytics survive a process restart",
+        "kind": "functional"
+      },
+      {
+        "id": "AC-ANALYTICS",
+        "text": "Every redirect records a click; the stats endpoint returns totals, per-day counts, top referrers and user-agent classes",
+        "kind": "functional"
+      },
+      {
+        "id": "AC-PRIVACY",
+        "text": "Raw client IPs and full referrer URLs are never stored; raw events are purgeable after the retention window",
+        "kind": "security"
+      },
+      {
+        "id": "AC-CONCURRENCY",
+        "text": "Code allocation is collision-safe under concurrent writers (no duplicate codes, no lost or overwritten links)",
+        "kind": "nfr"
+      },
+      {
+        "id": "AC-HOTPATH",
+        "text": "Redirects are served from cache after first access and analytics recording never blocks or fails a redirect",
+        "kind": "nfr"
+      },
+      {
+        "id": "AC-ABUSE",
+        "text": "Link creation is rate limited per client (429 + Retry-After); write endpoints require an API key when configured; only owners can disable a link",
+        "kind": "security"
+      },
+      {
+        "id": "AC-CONTRACT",
+        "text": "The HTTP API conforms exactly to the published OpenAPI contract; errors use application/problem+json",
+        "kind": "functional"
+      }
+    ],
+    "ambiguities": [
+      {
+        "id": "Q1",
+        "term": "scalable",
+        "category": "vague_term",
+        "question": "'scalable' is not measurable. What peak redirect throughput and total link volume must the service support?",
+        "default_assumption": "Design target 10k redirects/s peak, 100 creates/s, ~1B links over 5 years (read:write ~ 100:1). The prototype is sized for one node; the design scales out.",
+        "severity": "medium",
+        "answer": null,
+        "dimension": "scale"
+      },
+      {
+        "id": "Q2",
+        "term": "latency objective",
+        "category": "missing_nfr",
+        "question": "What latency objective applies to redirects?",
+        "default_assumption": "p99 redirect latency < 50 ms inside the service (cache hit < 5 ms).",
+        "severity": "low",
+        "answer": null,
+        "dimension": "latency"
+      },
+      {
+        "id": "Q3",
+        "term": "availability objective",
+        "category": "missing_nfr",
+        "question": "What availability target applies, and may link creation degrade before redirects?",
+        "default_assumption": "99.95% for redirects; creation and analytics may degrade first (analytics is best-effort and must never block redirects).",
+        "severity": "low",
+        "answer": null,
+        "dimension": "availability"
+      },
+      {
+        "id": "Q4",
+        "term": "write access control",
+        "category": "missing_nfr",
+        "question": "Who may create and delete links? Is an API key required for write endpoints?",
+        "default_assumption": "Write endpoints require an API key (X-API-Key); redirects and stats are public.",
+        "severity": "low",
+        "answer": null,
+        "dimension": "auth"
+      },
+      {
+        "id": "Q5",
+        "term": "analytics privacy",
+        "category": "missing_nfr",
+        "question": "Which visitor data may analytics store? (raw IPs are personal data under GDPR)",
+        "default_assumption": "Never store raw IPs: keep a salted, daily-rotating hash for unique-visitor counts.",
+        "severity": "low",
+        "answer": null,
+        "dimension": "privacy"
+      },
+      {
+        "id": "Q6",
+        "term": "analytics retention",
+        "category": "missing_nfr",
+        "question": "How long must raw click events be retained?",
+        "default_assumption": "Raw click events 90 days; daily aggregates kept for the life of the link.",
+        "severity": "low",
+        "answer": null,
+        "dimension": "retention"
+      },
+      {
+        "id": "Q7",
+        "term": "analytics dimensions",
+        "category": "missing_nfr",
+        "question": "Which analytics are required (clicks, uniques, referrers, devices, geography)?",
+        "default_assumption": "Total and daily clicks, unique visitors, top referrer hosts, user-agent class. Geo-IP is out of scope for v1 (needs a licensed database).",
+        "severity": "low",
+        "answer": null,
+        "dimension": "analytics_scope"
+      },
+      {
+        "id": "Q8",
+        "term": "abuse limits",
+        "category": "missing_nfr",
+        "question": "What creation rate per client is acceptable before throttling?",
+        "default_assumption": "60 link creations per minute per API key (or per IP when keys are disabled).",
+        "severity": "low",
+        "answer": null,
+        "dimension": "rate_limit"
+      },
+      {
+        "id": "Q9",
+        "term": "short-code format",
+        "category": "missing_nfr",
+        "question": "How long may short codes be, and must they be unguessable?",
+        "default_assumption": "7-character random base62 codes (62^7 = 3.5e12), unguessable, no sequential IDs.",
+        "severity": "low",
+        "answer": null,
+        "dimension": "code_length"
+      },
+      {
+        "id": "Q10",
+        "term": "default expiry",
+        "category": "missing_nfr",
+        "question": "Should links expire by default? If so after how many days?",
+        "default_assumption": "Links never expire unless the caller sets ttl_seconds.",
+        "severity": "low",
+        "answer": null,
+        "dimension": "expiry_default"
+      },
+      {
+        "id": "Q11",
+        "term": "custom aliases",
+        "category": "missing_nfr",
+        "question": "Are caller-chosen custom aliases allowed?",
+        "default_assumption": "Yes - custom aliases allowed, first-come-first-served, never overwritten.",
+        "severity": "low",
+        "answer": null,
+        "dimension": "aliases"
+      }
+    ],
+    "out_of_scope": [
+      "User accounts / UI dashboard",
+      "Geo-IP enrichment",
+      "Custom domains per tenant",
+      "Malware/phishing reputation lookups (documented as production follow-up)"
+    ],
+    "target_repo": null,
+    "settings": {
+      "require_api_key": true,
+      "analytics_ip_mode": "hash",
+      "analytics_retention_days": 90,
+      "create_rate_per_min": 60,
+      "code_length": 7,
+      "default_ttl_days": 0,
+      "allow_custom_alias": true
+    }
+  },
+  "plans": [
+    {
+      "tasks": [
+        {
+          "id": "design_architecture",
+          "title": "Design architecture, scaling plan and trade-offs",
+          "agent": "architect",
+          "depends_on": [
+            "plan"
+          ],
+          "params": {
+            "part": "architecture"
+          },
+          "critical": true,
+          "max_retries": 2,
+          "gate": null,
+          "always_run": false,
+          "rationale": "Architecture constrains every downstream artefact."
+        },
+        {
+          "id": "design_contract",
+          "title": "Define API contract (OpenAPI) and data schema",
+          "agent": "architect",
+          "depends_on": [
+            "design_architecture"
+          ],
+          "params": {
+            "part": "contract"
+          },
+          "critical": true,
+          "max_retries": 2,
+          "gate": null,
+          "always_run": false,
+          "rationale": "Contract-first: code, tests and docs all consume the same contract."
+        },
+        {
+          "id": "gen_domain",
+          "title": "Domain model, validation, short-code generation, config, errors",
+          "agent": "codegen",
+          "depends_on": [
+            "design_contract"
+          ],
+          "params": {
+            "files": [
+              "shortener/__init__.py",
+              "shortener/config.py",
+              "shortener/errors.py",
+              "shortener/domain.py",
+              "shortener/codes.py"
+            ]
+          },
+          "critical": true,
+          "max_retries": 2,
+          "gate": null,
+          "always_run": false,
+          "rationale": "Pure core with no I/O; everything else depends on it."
+        },
+        {
+          "id": "gen_persistence",
+          "title": "Link repository port + SQLite/in-memory adapters",
+          "agent": "codegen",
+          "depends_on": [
+            "gen_domain"
+          ],
+          "params": {
+            "files": [
+              "shortener/repository.py"
+            ]
+          },
+          "critical": true,
+          "max_retries": 2,
+          "gate": null,
+          "always_run": false,
+          "rationale": "Implements the data schema from design_contract; uniqueness enforced by storage."
+        },
+        {
+          "id": "gen_analytics",
+          "title": "Async click pipeline + analytics store",
+          "agent": "codegen",
+          "depends_on": [
+            "gen_persistence"
+          ],
+          "params": {
+            "files": [
+              "shortener/analytics.py"
+            ]
+          },
+          "critical": true,
+          "max_retries": 2,
+          "gate": null,
+          "always_run": false,
+          "rationale": "Shares the database handle; decoupled from redirects by a bounded queue."
+        },
+        {
+          "id": "gen_edge",
+          "title": "Hot-path cache and rate limiter",
+          "agent": "codegen",
+          "depends_on": [
+            "gen_domain"
+          ],
+          "params": {
+            "files": [
+              "shortener/cache.py",
+              "shortener/ratelimit.py"
+            ]
+          },
+          "critical": true,
+          "max_retries": 2,
+          "gate": null,
+          "always_run": false,
+          "rationale": "Independent of storage: generated in parallel with persistence/analytics."
+        },
+        {
+          "id": "gen_service",
+          "title": "Application service (business rules)",
+          "agent": "codegen",
+          "depends_on": [
+            "gen_persistence",
+            "gen_analytics",
+            "gen_edge"
+          ],
+          "params": {
+            "files": [
+              "shortener/service.py"
+            ]
+          },
+          "critical": true,
+          "max_retries": 2,
+          "gate": null,
+          "always_run": false,
+          "rationale": "Composes the ports; the only place business rules live."
+        },
+        {
+          "id": "gen_api",
+          "title": "HTTP adapter implementing the OpenAPI contract + composition root",
+          "agent": "codegen",
+          "depends_on": [
+            "gen_service",
+            "design_contract"
+          ],
+          "params": {
+            "files": [
+              "shortener/http.py",
+              "shortener/main.py",
+              "pyproject.toml"
+            ]
+          },
+          "critical": true,
+          "max_retries": 2,
+          "gate": null,
+          "always_run": false,
+          "rationale": "Must match the contract exactly; validated by contract tests."
+        },
+        {
+          "id": "gen_unit_tests",
+          "title": "Unit tests (domain, codes, cache, rate limiter, service, analytics)",
+          "agent": "testgen",
+          "depends_on": [
+            "design_contract"
+          ],
+          "params": {
+            "files": [
+              "tests/__init__.py",
+              "tests/support.py",
+              "tests/conftest.py",
+              "tests/unit/__init__.py",
+              "tests/unit/test_domain_and_codes.py",
+              "tests/unit/test_cache_and_ratelimit.py",
+              "tests/unit/test_service.py",
+              "tests/unit/test_analytics_recorder.py"
+            ]
+          },
+          "critical": true,
+          "max_retries": 2,
+          "gate": null,
+          "always_run": false,
+          "rationale": "Written from acceptance criteria + contract, in parallel with code."
+        },
+        {
+          "id": "gen_integration_tests",
+          "title": "Integration, contract, persistence and concurrency tests",
+          "agent": "testgen",
+          "depends_on": [
+            "design_contract"
+          ],
+          "params": {
+            "files": [
+              "tests/integration/__init__.py",
+              "tests/integration/test_api.py",
+              "tests/integration/test_contract.py",
+              "tests/integration/test_persistence_and_concurrency.py"
+            ]
+          },
+          "critical": true,
+          "max_retries": 2,
+          "gate": null,
+          "always_run": false,
+          "rationale": "Black-box against the contract; real SQLite; real threads."
+        },
+        {
+          "id": "gen_docs",
+          "title": "Generate README, API reference, ADRs, runbook",
+          "agent": "docgen",
+          "depends_on": [
+            "design_contract"
+          ],
+          "params": {},
+          "critical": false,
+          "max_retries": 2,
+          "gate": null,
+          "always_run": false,
+          "rationale": "Non-critical: docs failure degrades, never blocks code."
+        },
+        {
+          "id": "validate",
+          "title": "Validate: syntax, safety scan, lint, contract, tests, traceability",
+          "agent": "validator",
+          "depends_on": [
+            "gen_domain",
+            "gen_persistence",
+            "gen_analytics",
+            "gen_edge",
+            "gen_service",
+            "gen_api",
+            "gen_unit_tests",
+            "gen_integration_tests"
+          ],
+          "params": {},
+          "critical": true,
+          "max_retries": 2,
+          "gate": null,
+          "always_run": false,
+          "rationale": "Quality gate; failures trigger targeted repair cycles."
+        },
+        {
+          "id": "risk_review",
+          "title": "Risk register, trade-offs, failure scenarios",
+          "agent": "risk",
+          "depends_on": [
+            "validate"
+          ],
+          "params": {},
+          "critical": true,
+          "max_retries": 2,
+          "gate": null,
+          "always_run": true,
+          "rationale": ""
+        },
+        {
+          "id": "report",
+          "title": "Engineering summary and release decision",
+          "agent": "reporter",
+          "depends_on": [
+            "risk_review",
+            "gen_docs"
+          ],
+          "params": {},
+          "critical": true,
+          "max_retries": 2,
+          "gate": "release",
+          "always_run": true,
+          "rationale": ""
+        }
+      ],
+      "rationale": "Contract-first decomposition: architecture -> contract -> parallel component generation (DAG by import dependencies) || contract-driven test generation || docs -> validation with repair loop -> risk review -> engineering summary + release gate."
+    }
+  ],
+  "specs": [
+    {
+      "id": "understand",
+      "title": "Interpret requirement, detect ambiguity, normalise",
+      "agent": "requirements",
+      "depends_on": [],
+      "params": {},
+      "critical": true,
+      "max_retries": 2,
+      "gate": "requirements",
+      "always_run": false,
+      "rationale": "Nothing is built on an unconfirmed understanding."
+    },
+    {
+      "id": "plan",
+      "title": "Decompose into a task DAG",
+      "agent": "planner",
+      "depends_on": [
+        "understand"
+      ],
+      "params": {
+        "stage": "initial"
+      },
+      "critical": true,
+      "max_retries": 2,
+      "gate": "plan",
+      "always_run": false,
+      "rationale": "Humans approve the plan before execution."
+    },
+    {
+      "id": "escalate",
+      "title": "Partial summary if the run stops before planning completes",
+      "agent": "reporter",
+      "depends_on": [
+        "plan"
+      ],
+      "params": {
+        "mode": "escalation"
+      },
+      "critical": true,
+      "max_retries": 2,
+      "gate": null,
+      "always_run": true,
+      "rationale": "A stopped run must still leave a reviewable record."
+    },
+    {
+      "id": "design_architecture",
+      "title": "Design architecture, scaling plan and trade-offs",
+      "agent": "architect",
+      "depends_on": [
+        "plan"
+      ],
+      "params": {
+        "part": "architecture"
+      },
+      "critical": true,
+      "max_retries": 2,
+      "gate": null,
+      "always_run": false,
+      "rationale": "Architecture constrains every downstream artefact."
+    },
+    {
+      "id": "design_contract",
+      "title": "Define API contract (OpenAPI) and data schema",
+      "agent": "architect",
+      "depends_on": [
+        "design_architecture"
+      ],
+      "params": {
+        "part": "contract"
+      },
+      "critical": true,
+      "max_retries": 2,
+      "gate": null,
+      "always_run": false,
+      "rationale": "Contract-first: code, tests and docs all consume the same contract."
+    },
+    {
+      "id": "gen_domain",
+      "title": "Domain model, validation, short-code generation, config, errors",
+      "agent": "codegen",
+      "depends_on": [
+        "design_contract"
+      ],
+      "params": {
+        "files": [
+          "shortener/__init__.py",
+          "shortener/config.py",
+          "shortener/errors.py",
+          "shortener/domain.py",
+          "shortener/codes.py"
+        ]
+      },
+      "critical": true,
+      "max_retries": 2,
+      "gate": null,
+      "always_run": false,
+      "rationale": "Pure core with no I/O; everything else depends on it."
+    },
+    {
+      "id": "gen_persistence",
+      "title": "Link repository port + SQLite/in-memory adapters",
+      "agent": "codegen",
+      "depends_on": [
+        "gen_domain"
+      ],
+      "params": {
+        "files": [
+          "shortener/repository.py"
+        ]
+      },
+      "critical": true,
+      "max_retries": 2,
+      "gate": null,
+      "always_run": false,
+      "rationale": "Implements the data schema from design_contract; uniqueness enforced by storage."
+    },
+    {
+      "id": "gen_analytics",
+      "title": "Async click pipeline + analytics store",
+      "agent": "codegen",
+      "depends_on": [
+        "gen_persistence"
+      ],
+      "params": {
+        "files": [
+          "shortener/analytics.py"
+        ]
+      },
+      "critical": true,
+      "max_retries": 2,
+      "gate": null,
+      "always_run": false,
+      "rationale": "Shares the database handle; decoupled from redirects by a bounded queue."
+    },
+    {
+      "id": "gen_edge",
+      "title": "Hot-path cache and rate limiter",
+      "agent": "codegen",
+      "depends_on": [
+        "gen_domain"
+      ],
+      "params": {
+        "files": [
+          "shortener/cache.py",
+          "shortener/ratelimit.py"
+        ]
+      },
+      "critical": true,
+      "max_retries": 2,
+      "gate": null,
+      "always_run": false,
+      "rationale": "Independent of storage: generated in parallel with persistence/analytics."
+    },
+    {
+      "id": "gen_service",
+      "title": "Application service (business rules)",
+      "agent": "codegen",
+      "depends_on": [
+        "gen_persistence",
+        "gen_analytics",
+        "gen_edge"
+      ],
+      "params": {
+        "files": [
+          "shortener/service.py"
+        ]
+      },
+      "critical": true,
+      "max_retries": 2,
+      "gate": null,
+      "always_run": false,
+      "rationale": "Composes the ports; the only place business rules live."
+    },
+    {
+      "id": "gen_api",
+      "title": "HTTP adapter implementing the OpenAPI contract + composition root",
+      "agent": "codegen",
+      "depends_on": [
+        "gen_service",
+        "design_contract"
+      ],
+      "params": {
+        "files": [
+          "shortener/http.py",
+          "shortener/main.py",
+          "pyproject.toml"
+        ]
+      },
+      "critical": true,
+      "max_retries": 2,
+      "gate": null,
+      "always_run": false,
+      "rationale": "Must match the contract exactly; validated by contract tests."
+    },
+    {
+      "id": "gen_unit_tests",
+      "title": "Unit tests (domain, codes, cache, rate limiter, service, analytics)",
+      "agent": "testgen",
+      "depends_on": [
+        "design_contract"
+      ],
+      "params": {
+        "files": [
+          "tests/__init__.py",
+          "tests/support.py",
+          "tests/conftest.py",
+          "tests/unit/__init__.py",
+          "tests/unit/test_domain_and_codes.py",
+          "tests/unit/test_cache_and_ratelimit.py",
+          "tests/unit/test_service.py",
+          "tests/unit/test_analytics_recorder.py"
+        ]
+      },
+      "critical": true,
+      "max_retries": 2,
+      "gate": null,
+      "always_run": false,
+      "rationale": "Written from acceptance criteria + contract, in parallel with code."
+    },
+    {
+      "id": "gen_integration_tests",
+      "title": "Integration, contract, persistence and concurrency tests",
+      "agent": "testgen",
+      "depends_on": [
+        "design_contract"
+      ],
+      "params": {
+        "files": [
+          "tests/integration/__init__.py",
+          "tests/integration/test_api.py",
+          "tests/integration/test_contract.py",
+          "tests/integration/test_persistence_and_concurrency.py"
+        ]
+      },
+      "critical": true,
+      "max_retries": 2,
+      "gate": null,
+      "always_run": false,
+      "rationale": "Black-box against the contract; real SQLite; real threads."
+    },
+    {
+      "id": "gen_docs",
+      "title": "Generate README, API reference, ADRs, runbook",
+      "agent": "docgen",
+      "depends_on": [
+        "design_contract"
+      ],
+      "params": {},
+      "critical": false,
+      "max_retries": 2,
+      "gate": null,
+      "always_run": false,
+      "rationale": "Non-critical: docs failure degrades, never blocks code."
+    },
+    {
+      "id": "validate",
+      "title": "Validate: syntax, safety scan, lint, contract, tests, traceability",
+      "agent": "validator",
+      "depends_on": [
+        "gen_domain",
+        "gen_persistence",
+        "gen_analytics",
+        "gen_edge",
+        "gen_service",
+        "gen_api",
+        "gen_unit_tests",
+        "gen_integration_tests"
+      ],
+      "params": {},
+      "critical": true,
+      "max_retries": 2,
+      "gate": null,
+      "always_run": false,
+      "rationale": "Quality gate; failures trigger targeted repair cycles."
+    },
+    {
+      "id": "risk_review",
+      "title": "Risk register, trade-offs, failure scenarios",
+      "agent": "risk",
+      "depends_on": [
+        "validate"
+      ],
+      "params": {},
+      "critical": true,
+      "max_retries": 2,
+      "gate": null,
+      "always_run": true,
+      "rationale": ""
+    },
+    {
+      "id": "report",
+      "title": "Engineering summary and release decision",
+      "agent": "reporter",
+      "depends_on": [
+        "risk_review",
+        "gen_docs"
+      ],
+      "params": {},
+      "critical": true,
+      "max_retries": 2,
+      "gate": "release",
+      "always_run": true,
+      "rationale": ""
+    }
+  ],
+  "records": {
+    "understand": {
+      "id": "understand",
+      "status": "succeeded",
+      "attempts": 1,
+      "started_at": 1794494667.222292,
+      "finished_at": 1794494667.2262578,
+      "error": null,
+      "notes": [
+        "kind=greenfield domain=url_shortener confidence=1.00",
+        "5 stated / 5 assumed capabilities, 11 ambiguities, 12 acceptance criteria"
+      ]
+    },
+    "plan": {
+      "id": "plan",
+      "status": "succeeded",
+      "attempts": 1,
+      "started_at": 1794494667.2270124,
+      "finished_at": 1794494667.2274358,
+      "error": null,
+      "notes": [
+        "14 tasks planned (initial)"
+      ]
+    },
+    "escalate": {
+      "id": "escalate",
+      "status": "succeeded",
+      "attempts": 1,
+      "started_at": 1794494667.2283,
+      "finished_at": 1794494667.228505,
+      "error": null,
+      "notes": [
+        "not needed: plan approved, full report will follow"
+      ]
+    },
+    "design_architecture": {
+      "id": "design_architecture",
+      "status": "succeeded",
+      "attempts": 1,
+      "started_at": 1794494667.2283566,
+      "finished_at": 1794494667.2306163,
+      "error": null,
+      "notes": [
+        "8 components, 7 ADRs"
+      ]
+    },
+    "design_contract": {
+      "id": "design_contract",
+      "status": "succeeded",
+      "attempts": 1,
+      "started_at": 1794494667.2315202,
+      "finished_at": 1794494667.2386353,
+      "error": null,
+      "notes": [
+        "6 operations, 3 tables"
+      ]
+    },
+    "gen_domain": {
+      "id": "gen_domain",
+      "status": "succeeded",
+      "attempts": 1,
+      "started_at": 1794494667.2400873,
+      "finished_at": 1794494667.2509193,
+      "error": null,
+      "notes": [
+        "5 file change(s): project/shortener/__init__.py, project/shortener/codes.py, project/shortener/config.py, project/shortener/domain.py, project/shortener/errors.py"
+      ]
+    },
+    "gen_persistence": {
+      "id": "gen_persistence",
+      "status": "succeeded",
+      "attempts": 1,
+      "started_at": 1794494667.2538369,
+      "finished_at": 1794494667.2575548,
+      "error": null,
+      "notes": [
+        "1 file change(s): project/shortener/repository.py"
+      ]
+    },
+    "gen_analytics": {
+      "id": "gen_analytics",
+      "status": "succeeded",
+      "attempts": 1,
+      "started_at": 1794494667.2622788,
+      "finished_at": 1794494667.265399,
+      "error": null,
+      "notes": [
+        "1 file change(s): project/shortener/analytics.py"
+      ]
+    },
+    "gen_edge": {
+      "id": "gen_edge",
+      "status": "succeeded",
+      "attempts": 1,
+      "started_at": 1794494667.254124,
+      "finished_at": 1794494667.2641656,
+      "error": null,
+      "notes": [
+        "2 file change(s): project/shortener/cache.py, project/shortener/ratelimit.py"
+      ]
+    },
+    "gen_service": {
+      "id": "gen_service",
+      "status": "succeeded",
+      "attempts": 1,
+      "started_at": 1794494667.2665532,
+      "finished_at": 1794494667.2672813,
+      "error": null,
+      "notes": [
+        "1 file change(s): project/shortener/service.py"
+      ]
+    },
+    "gen_api": {
+      "id": "gen_api",
+      "status": "succeeded",
+      "attempts": 1,
+      "started_at": 1794494667.3692997,
+      "finished_at": 1794494667.3723037,
+      "error": null,
+      "notes": [
+        "3 file change(s): project/pyproject.toml, project/shortener/http.py, project/shortener/main.py"
+      ]
+    },
+    "gen_unit_tests": {
+      "id": "gen_unit_tests",
+      "status": "succeeded",
+      "attempts": 1,
+      "started_at": 1794494667.2401712,
+      "finished_at": 1794494667.2623954,
+      "error": null,
+      "notes": [
+        "32 test functions across 8 files; covers 10 acceptance criteria"
+      ]
+    },
+    "gen_integration_tests": {
+      "id": "gen_integration_tests",
+      "status": "succeeded",
+      "attempts": 1,
+      "started_at": 1794494667.2410083,
+      "finished_at": 1794494667.2466872,
+      "error": null,
+      "notes": [
+        "21 test functions across 4 files; covers 11 acceptance criteria"
+      ]
+    },
+    "gen_docs": {
+      "id": "gen_docs",
+      "status": "succeeded",
+      "attempts": 1,
+      "started_at": 1794494667.2413144,
+      "finished_at": 1794494667.2545083,
+      "error": null,
+      "notes": [
+        "10 documents"
+      ]
+    },
+    "validate": {
+      "id": "validate",
+      "status": "succeeded",
+      "attempts": 1,
+      "started_at": 1794494667.375245,
+      "finished_at": 1794494669.3294387,
+      "error": null,
+      "notes": [
+        "tests 90/90 passed; 0 non-blocking finding(s)"
+      ]
+    },
+    "risk_review": {
+      "id": "risk_review",
+      "status": "succeeded",
+      "attempts": 1,
+      "started_at": 1794494669.3315094,
+      "finished_at": 1794494669.3318012,
+      "error": null,
+      "notes": [
+        "7 risks (1 from unconfirmed assumptions)"
+      ]
+    },
+    "report": {
+      "id": "report",
+      "status": "succeeded",
+      "attempts": 1,
+      "started_at": 1794494669.3337142,
+      "finished_at": 1794494669.338071,
+      "error": null,
+      "notes": [
+        "summary written; status=ready_for_review"
+      ]
+    }
+  },
+  "validation": {
+    "mode": "greenfield",
+    "files_checked": 24,
+    "tools": {
+      "ruff": {
+        "available": true,
+        "ok": true,
+        "issues": []
+      },
+      "mypy": {
+        "available": true,
+        "ok": true,
+        "issues": []
+      }
+    },
+    "tests": {
+      "total": 90,
+      "passed": 90,
+      "failed": 0,
+      "errors": 0,
+      "skipped": 0,
+      "duration_s": 0.19,
+      "failures": []
+    },
+    "traceability": {
+      "AC-CREATE": {
+        "text": "POST /api/v1/links with a valid http(s) URL returns 201 with a unique short code and short_url",
+        "tests": [
+          "tests/integration/test_api.py::test_create_returns_201_with_short_url",
+          "tests/unit/test_service.py::test_create_and_resolve"
+        ]
+      },
+      "AC-REDIRECT": {
+        "text": "GET /{code} returns 302 with Location set to the original URL; unknown codes return 404",
+        "tests": [
+          "tests/integration/test_api.py::test_redirect_returns_302_to_target",
+          "tests/integration/test_api.py::test_unknown_code_returns_problem_json_404",
+          "tests/unit/test_service.py::test_create_and_resolve"
+        ]
+      },
+      "AC-VALIDATE": {
+        "text": "Non-http(s), credential-bearing, local or private-network target URLs are rejected with 422",
+        "tests": [
+          "tests/integration/test_api.py::test_unsafe_url_rejected_with_422",
+          "tests/unit/test_domain_and_codes.py::test_overlong_url_rejected",
+          "tests/unit/test_domain_and_codes.py::test_unsafe_or_malformed_urls_are_rejected",
+          "tests/unit/test_domain_and_codes.py::test_url_normalisation_lowercases_scheme_and_host",
+          "tests/unit/test_domain_and_codes.py::test_valid_urls_are_accepted_and_normalised",
+          "tests/unit/test_service.py::test_create_rejects_unsafe_url"
+        ]
+      },
+      "AC-ALIAS": {
+        "text": "A custom alias can be requested; a taken alias returns 409 and never overwrites the existing link",
+        "tests": [
+          "tests/integration/test_api.py::test_alias_conflict_returns_409_and_keeps_original",
+          "tests/integration/test_persistence_and_concurrency.py::test_concurrent_alias_race_has_exactly_one_winner",
+          "tests/unit/test_domain_and_codes.py::test_invalid_or_reserved_alias",
+          "tests/unit/test_domain_and_codes.py::test_valid_alias",
+          "tests/unit/test_service.py::test_custom_alias_is_never_overwritten"
+        ]
+      },
+      "AC-EXPIRY": {
+        "text": "Links may carry a TTL; expired links return 410 Gone",
+        "tests": [
+          "tests/integration/test_api.py::test_expired_link_returns_410",
+          "tests/unit/test_service.py::test_default_ttl_applied_when_configured",
+          "tests/unit/test_service.py::test_invalid_ttl_rejected",
+          "tests/unit/test_service.py::test_ttl_expiry"
+        ]
+      },
+      "AC-PERSIST": {
+        "text": "Links and analytics survive a process restart",
+        "tests": [
+          "tests/integration/test_persistence_and_concurrency.py::test_concurrent_creates_produce_unique_codes",
+          "tests/integration/test_persistence_and_concurrency.py::test_links_and_clicks_survive_restart"
+        ]
+      },
+      "AC-ANALYTICS": {
+        "text": "Every redirect records a click; the stats endpoint returns totals, per-day counts, top referrers and user-agent classes",
+        "tests": [
+          "tests/integration/test_api.py::test_clicks_are_counted_in_stats",
+          "tests/integration/test_persistence_and_concurrency.py::test_links_and_clicks_survive_restart",
+          "tests/unit/test_analytics_recorder.py::test_async_recorder_batches_and_flushes",
+          "tests/unit/test_analytics_recorder.py::test_background_flush_interval",
+          "tests/unit/test_domain_and_codes.py::test_user_agent_classification",
+          "tests/unit/test_service.py::test_click_recording_and_stats"
+        ]
+      },
+      "AC-PRIVACY": {
+        "text": "Raw client IPs and full referrer URLs are never stored; raw events are purgeable after the retention window",
+        "tests": [
+          "tests/integration/test_api.py::test_clicks_are_counted_in_stats",
+          "tests/integration/test_persistence_and_concurrency.py::test_retention_purge",
+          "tests/unit/test_domain_and_codes.py::test_ip_anonymisation_modes",
+          "tests/unit/test_domain_and_codes.py::test_referrer_is_reduced_to_host",
+          "tests/unit/test_service.py::test_click_recording_and_stats"
+        ]
+      },
+      "AC-CONCURRENCY": {
+        "text": "Code allocation is collision-safe under concurrent writers (no duplicate codes, no lost or overwritten links)",
+        "tests": [
+          "tests/integration/test_persistence_and_concurrency.py::test_concurrent_alias_race_has_exactly_one_winner",
+          "tests/integration/test_persistence_and_concurrency.py::test_concurrent_creates_produce_unique_codes",
+          "tests/unit/test_domain_and_codes.py::test_code_generator_length_and_alphabet",
+          "tests/unit/test_service.py::test_code_space_exhaustion_is_reported",
+          "tests/unit/test_service.py::test_collision_is_retried"
+        ]
+      },
+      "AC-HOTPATH": {
+        "text": "Redirects are served from cache after first access and analytics recording never blocks or fails a redirect",
+        "tests": [
+          "tests/unit/test_analytics_recorder.py::test_async_recorder_batches_and_flushes",
+          "tests/unit/test_analytics_recorder.py::test_full_queue_drops_instead_of_blocking",
+          "tests/unit/test_analytics_recorder.py::test_store_failure_does_not_crash_flusher",
+          "tests/unit/test_cache_and_ratelimit.py::test_cache_hit_miss_and_expiry",
+          "tests/unit/test_cache_and_ratelimit.py::test_cache_negative_entries_and_lru_eviction",
+          "tests/unit/test_service.py::test_disable_respects_ownership_and_invalidates_cache",
+          "tests/unit/test_service.py::test_resolve_uses_cache",
+          "tests/unit/test_service.py::test_unknown_code_is_negatively_cached"
+        ]
+      },
+      "AC-ABUSE": {
+        "text": "Link creation is rate limited per client (429 + Retry-After); write endpoints require an API key when configured; only owners can disable a link",
+        "tests": [
+          "tests/integration/test_api.py::test_create_is_rate_limited",
+          "tests/integration/test_api.py::test_delete_disables_link",
+          "tests/integration/test_api.py::test_write_requires_api_key_when_enabled",
+          "tests/integration/test_contract.py::test_secured_operations_match_auth_flags",
+          "tests/unit/test_cache_and_ratelimit.py::test_token_bucket_limits_and_refills",
+          "tests/unit/test_service.py::test_disable_respects_ownership_and_invalidates_cache"
+        ]
+      },
+      "AC-CONTRACT": {
+        "text": "The HTTP API conforms exactly to the published OpenAPI contract; errors use application/problem+json",
+        "tests": [
+          "tests/integration/test_api.py::test_create_returns_201_with_short_url",
+          "tests/integration/test_api.py::test_health",
+          "tests/integration/test_api.py::test_malformed_requests",
+          "tests/integration/test_api.py::test_stats_rejects_non_integer_days",
+          "tests/integration/test_api.py::test_unknown_code_returns_problem_json_404",
+          "tests/integration/test_contract.py::test_documented_error_statuses_exist_in_error_model",
+          "tests/integration/test_contract.py::test_every_contract_operation_is_implemented_and_vice_versa",
+          "tests/integration/test_contract.py::test_operation_ids_match",
+          "tests/integration/test_contract.py::test_secured_operations_match_auth_flags"
+        ]
+      }
+    },
+    "checks": [
+      "syntax",
+      "static_safety",
+      "lint",
+      "types",
+      "schema_conformance",
+      "contract_conformance",
+      "settings_conformance",
+      "tests",
+      "traceability"
+    ],
+    "findings": [],
+    "blocking": [],
+    "passed": true
+  },
+  "risks": [
+    {
+      "id": "R-ABUSE",
+      "title": "Service used for phishing / malware redirection",
+      "likelihood": "high",
+      "impact": "high",
+      "mitigation": "URL safety validation, API keys, per-key rate limits, owner disable; add Safe Browsing lookup + WAF bot rules in production",
+      "category": "security"
+    },
+    {
+      "id": "R-ENUM",
+      "title": "Enumeration of short codes exposing private links",
+      "likelihood": "medium",
+      "impact": "medium",
+      "mitigation": "Random 7+ char codes (3.5e12 space), negative caching, WAF rate rules on 404 bursts",
+      "category": "security"
+    },
+    {
+      "id": "R-HOTKEY",
+      "title": "Viral link creates a hot partition / cache stampede",
+      "likelihood": "medium",
+      "impact": "high",
+      "mitigation": "Read-through cache in front of the store; DynamoDB adaptive capacity; request coalescing (future) for cold misses",
+      "category": "scalability"
+    },
+    {
+      "id": "R-ANALYTICS-LOSS",
+      "title": "Click events lost under overload or crash (in-memory buffer)",
+      "likelihood": "medium",
+      "impact": "low",
+      "mitigation": "Bounded queue with drop counters on /healthz; flush on SIGTERM; durable stream (Kinesis) in prod",
+      "category": "reliability"
+    },
+    {
+      "id": "R-PRIVACY",
+      "title": "Analytics retaining personal data beyond purpose",
+      "likelihood": "low",
+      "impact": "high",
+      "mitigation": "No raw IPs, referrer reduced to host, retention purge for raw events",
+      "category": "compliance"
+    },
+    {
+      "id": "R-SINGLE-NODE",
+      "title": "Prototype uses SQLite and in-process cache/limiter (single node)",
+      "likelihood": "high",
+      "impact": "medium",
+      "mitigation": "All are behind ports; production adapters listed in the architecture; limiter must move to a shared store before scaling out",
+      "category": "scalability"
+    },
+    {
+      "id": "R-ASSUME-1",
+      "title": "Assumption not confirmed by a human: scalable",
+      "likelihood": "medium",
+      "impact": "medium",
+      "mitigation": "Defaulted to: Design target 10k redirects/s peak, 100 creates/s, ~1B links over 5 years (read:write ~ 100:1). The prototype is sized for one node; the design scales out.. Confirm before production; the value is configurable.",
+      "category": "requirements"
+    }
+  ],
+  "tradeoffs": [
+    {
+      "decision": "Short-code allocation",
+      "chosen": "Random base62 (CSPRNG) + uniqueness constraint + bounded retry",
+      "alternatives": "Global counter + base62; hash(url) truncation; pre-allocated key ranges (KGS)",
+      "rationale": "No coordinator or hot counter, codes are unguessable (no enumeration), collisions are detectable atomically by the store. Cost: one extra write attempt in ~1e-3 cases at 1B links."
+    },
+    {
+      "decision": "Redirect status code",
+      "chosen": "302 Found",
+      "alternatives": "301 Moved Permanently",
+      "rationale": "301 is cached by browsers forever, so clicks after the first are invisible to analytics and disabling/expiring a link would not take effect. 302 costs one round-trip per click."
+    },
+    {
+      "decision": "Analytics write path",
+      "chosen": "Asynchronous bounded queue, batch writes, drop on overload",
+      "alternatives": "Synchronous write per redirect; exactly-once streaming",
+      "rationale": "Redirect latency/availability is the product; analytics is best-effort. Drops are counted and exposed on /healthz so loss is observable, not silent."
+    },
+    {
+      "decision": "Analytics storage model",
+      "chosen": "Raw events (bounded retention) + pre-aggregated daily counters",
+      "alternatives": "Raw events only; aggregates only",
+      "rationale": "Totals stay O(days) to query and survive raw-event purging (privacy/retention); raw window still supports referrer/UA breakdowns."
+    },
+    {
+      "decision": "Primary store",
+      "chosen": "Key-value semantics behind a port (SQLite in prototype, DynamoDB in prod)",
+      "alternatives": "Relational DB (Aurora) with sharding",
+      "rationale": "Access pattern is single-key get/put at very high read volume; KV gives predictable latency and horizontal scale without sharding logic."
+    },
+    {
+      "decision": "Visitor privacy",
+      "chosen": "Salted daily-rotating IP hash (or drop)",
+      "alternatives": "Store raw IPs",
+      "rationale": "Unique-visitor counts without retaining personal data or enabling cross-day tracking."
+    },
+    {
+      "decision": "Framework",
+      "chosen": "Standard-library WSGI adapter",
+      "alternatives": "FastAPI/Starlette",
+      "rationale": "Zero runtime dependencies for the prototype and fully in-process tests; the adapter is thin (one module) and can be swapped without touching service or storage code."
+    }
+  ],
+  "failure_scenarios": [
+    [
+      "Link store unavailable",
+      "Cached links keep redirecting; uncached -> 5xx; creates fail fast. Prod: multi-AZ DynamoDB, alarms on throttles/errors."
+    ],
+    [
+      "Analytics store slow/down",
+      "Redirects unaffected (bounded queue); events dropped and counted on /healthz; flusher survives write errors."
+    ],
+    [
+      "Code collision storm",
+      "Bounded retry (5) then 503 code_space_exhausted - signals code length is too short for volume instead of looping."
+    ],
+    [
+      "Duplicate alias race",
+      "Storage uniqueness constraint arbitrates; exactly one writer wins, others get 409 - verified by a concurrent test."
+    ],
+    [
+      "Link disabled while cached on other nodes",
+      "Local cache is invalidated immediately; other nodes converge within cache TTL (60s). Prod: publish invalidations or lower TTL."
+    ],
+    [
+      "Abusive client",
+      "Per-key token bucket returns 429 with Retry-After; owner can disable links."
+    ],
+    [
+      "Process crash",
+      "Up to one flush interval of click events lost (in-memory buffer); links are durable. Prod: durable stream (Kinesis) closes the gap."
+    ]
+  ],
+  "strategy": {
+    "Automated (this run)": [
+      "Static: syntax, safety scan (eval/shell/SQL injection/secrets), ruff, mypy",
+      "Cross-artifact: SQL vs data schema, routes vs OpenAPI contract, config vs approved requirement settings",
+      "Unit tests: domain validation, code generation, cache, rate limiter, service rules, analytics pipeline",
+      "Integration tests: HTTP API over real SQLite, contract conformance, durability across restart, concurrent writers (unique codes, alias race)",
+      "Traceability: every acceptance criterion covered by at least one passing test"
+    ],
+    "Pre-production": [
+      "Load test (k6/Locust) at 2x target peak: redirect p99 < 50 ms, 0 errors, cache hit > 90%",
+      "Soak test 24h: memory flat, analytics backlog bounded",
+      "Chaos: stop analytics store (redirects unaffected), throttle link store (graceful 5xx)",
+      "Security: DAST on API, abuse simulation against rate limits"
+    ],
+    "Production": [
+      "Canary 5% with automated rollback on p99/5xx SLO burn",
+      "Synthetic probes: create -> redirect -> stats every minute per region",
+      "Dashboards/alerts from RUNBOOK.md"
+    ]
+  },
+  "gates": [
+    {
+      "gate": "requirements",
+      "approved": true,
+      "decided_by": "policy:auto",
+      "comment": "accepted 11 default assumption(s); flagged in summary",
+      "answers": {},
+      "at": 1794494667.2264395
+    },
+    {
+      "gate": "plan",
+      "approved": true,
+      "decided_by": "policy:auto",
+      "comment": "",
+      "answers": {},
+      "at": 1794494667.2275414
+    },
+    {
+      "gate": "release",
+      "approved": true,
+      "decided_by": "policy:auto",
+      "comment": "",
+      "answers": {},
+      "at": 1794494669.3382013
+    }
+  ],
+  "artifacts": [
+    {
+      "path": "project/README.md",
+      "task": "gen_docs",
+      "lines": 61,
+      "sha": "0a26b6dbdc36",
+      "op": "create"
+    },
+    {
+      "path": "project/docs/API.md",
+      "task": "gen_docs",
+      "lines": 70,
+      "sha": "d66a67e4ef92",
+      "op": "create"
+    },
+    {
+      "path": "project/docs/RUNBOOK.md",
+      "task": "gen_docs",
+      "lines": 23,
+      "sha": "699faf529156",
+      "op": "create"
+    },
+    {
+      "path": "project/docs/adr/ADR-001.md",
+      "task": "gen_docs",
+      "lines": 12,
+      "sha": "098f88df92c4",
+      "op": "create"
+    },
+    {
+      "path": "project/docs/adr/ADR-002.md",
+      "task": "gen_docs",
+      "lines": 12,
+      "sha": "cfa965601268",
+      "op": "create"
+    },
+    {
+      "path": "project/docs/adr/ADR-003.md",
+      "task": "gen_docs",
+      "lines": 12,
+      "sha": "354fdec45fab",
+      "op": "create"
+    },
+    {
+      "path": "project/docs/adr/ADR-004.md",
+      "task": "gen_docs",
+      "lines": 12,
+      "sha": "67d30f1850f3",
+      "op": "create"
+    },
+    {
+      "path": "project/docs/adr/ADR-005.md",
+      "task": "gen_docs",
+      "lines": 12,
+      "sha": "e44172d7a152",
+      "op": "create"
+    },
+    {
+      "path": "project/docs/adr/ADR-006.md",
+      "task": "gen_docs",
+      "lines": 12,
+      "sha": "a2fb6068e997",
+      "op": "create"
+    },
+    {
+      "path": "project/docs/adr/ADR-007.md",
+      "task": "gen_docs",
+      "lines": 12,
+      "sha": "fb48741514af",
+      "op": "create"
+    },
+    {
+      "path": "project/openapi.json",
+      "task": "design_contract",
+      "lines": 458,
+      "sha": "746e3153864a",
+      "op": "create"
+    },
+    {
+      "path": "project/openapi.yaml",
+      "task": "design_contract",
+      "lines": 273,
+      "sha": "a341e818866e",
+      "op": "create"
+    },
+    {
+      "path": "project/pyproject.toml",
+      "task": "gen_api",
+      "lines": 12,
+      "sha": "f9a15a705487",
+      "op": "create"
+    },
+    {
+      "path": "project/shortener/__init__.py",
+      "task": "gen_domain",
+      "lines": 2,
+      "sha": "dadb67928979",
+      "op": "create"
+    },
+    {
+      "path": "project/shortener/analytics.py",
+      "task": "gen_analytics",
+      "lines": 200,
+      "sha": "d88919a1d4ed",
+      "op": "create"
+    },
+    {
+      "path": "project/shortener/cache.py",
+      "task": "gen_edge",
+      "lines": 60,
+      "sha": "13922809e9f7",
+      "op": "create"
+    },
+    {
+      "path": "project/shortener/codes.py",
+      "task": "gen_domain",
+      "lines": 46,
+      "sha": "d304fed5ac8b",
+      "op": "create"
+    },
+    {
+      "path": "project/shortener/config.py",
+      "task": "gen_domain",
+      "lines": 76,
+      "sha": "eb3eef626a8e",
+      "op": "create"
+    },
+    {
+      "path": "project/shortener/domain.py",
+      "task": "gen_domain",
+      "lines": 103,
+      "sha": "39edd4d56fba",
+      "op": "create"
+    },
+    {
+      "path": "project/shortener/errors.py",
+      "task": "gen_domain",
+      "lines": 65,
+      "sha": "c805841497df",
+      "op": "create"
+    },
+    {
+      "path": "project/shortener/http.py",
+      "task": "gen_api",
+      "lines": 215,
+      "sha": "a6ead86eae2f",
+      "op": "create"
+    },
+    {
+      "path": "project/shortener/main.py",
+      "task": "gen_api",
+      "lines": 67,
+      "sha": "77576ab7fac6",
+      "op": "create"
+    },
+    {
+      "path": "project/shortener/ratelimit.py",
+      "task": "gen_edge",
+      "lines": 42,
+      "sha": "0acb189670f5",
+      "op": "create"
+    },
+    {
+      "path": "project/shortener/repository.py",
+      "task": "gen_persistence",
+      "lines": 103,
+      "sha": "ba15bd3578eb",
+      "op": "create"
+    },
+    {
+      "path": "project/shortener/schema.sql",
+      "task": "design_contract",
+      "lines": 31,
+      "sha": "b85e284b47ad",
+      "op": "create"
+    },
+    {
+      "path": "project/shortener/service.py",
+      "task": "gen_service",
+      "lines": 127,
+      "sha": "9daaf669888c",
+      "op": "create"
+    },
+    {
+      "path": "project/tests/__init__.py",
+      "task": "gen_unit_tests",
+      "lines": 0,
+      "sha": "e3b0c44298fc",
+      "op": "create"
+    },
+    {
+      "path": "project/tests/conftest.py",
+      "task": "gen_unit_tests",
+      "lines": 57,
+      "sha": "22c188e8b601",
+      "op": "create"
+    },
+    {
+      "path": "project/tests/integration/__init__.py",
+      "task": "gen_integration_tests",
+      "lines": 0,
+      "sha": "e3b0c44298fc",
+      "op": "create"
+    },
+    {
+      "path": "project/tests/integration/test_api.py",
+      "task": "gen_integration_tests",
+      "lines": 128,
+      "sha": "043725a8da18",
+      "op": "create"
+    },
+    {
+      "path": "project/tests/integration/test_contract.py",
+      "task": "gen_integration_tests",
+      "lines": 49,
+      "sha": "3a279caa64dc",
+      "op": "create"
+    },
+    {
+      "path": "project/tests/integration/test_persistence_and_concurrency.py",
+      "task": "gen_integration_tests",
+      "lines": 86,
+      "sha": "19308b34b449",
+      "op": "create"
+    },
+    {
+      "path": "project/tests/support.py",
+      "task": "gen_unit_tests",
+      "lines": 52,
+      "sha": "9791452d9ea0",
+      "op": "create"
+    },
+    {
+      "path": "project/tests/unit/__init__.py",
+      "task": "gen_unit_tests",
+      "lines": 0,
+      "sha": "e3b0c44298fc",
+      "op": "create"
+    },
+    {
+      "path": "project/tests/unit/test_analytics_recorder.py",
+      "task": "gen_unit_tests",
+      "lines": 58,
+      "sha": "a3598e8a70a2",
+      "op": "create"
+    },
+    {
+      "path": "project/tests/unit/test_cache_and_ratelimit.py",
+      "task": "gen_unit_tests",
+      "lines": 64,
+      "sha": "dc7a4099d27d",
+      "op": "create"
+    },
+    {
+      "path": "project/tests/unit/test_domain_and_codes.py",
+      "task": "gen_unit_tests",
+      "lines": 92,
+      "sha": "1a579d38e920",
+      "op": "create"
+    },
+    {
+      "path": "project/tests/unit/test_service.py",
+      "task": "gen_unit_tests",
+      "lines": 122,
+      "sha": "56c86b6599df",
+      "op": "create"
+    }
+  ],
+  "impact": null,
+  "baseline": null,
+  "repair_cycles": 0,
+  "repair_history": [],
+  "rejected_answers": [],
+  "release_decision": {
+    "gate": "release",
+    "approved": true,
+    "decided_by": "policy:auto",
+    "comment": "",
+    "answers": {},
+    "at": 1794494669.3382013
+  },
+  "llm": "none (deterministic agents)",
+  "path": "ENGINEERING_SUMMARY.md"
+}

@@ -1,0 +1,43 @@
+{"t": 0.001, "event": "run_started", "run_id": "no-utf8-env", "tasks": 3}
+{"t": 0.003, "event": "task_started", "task": "understand", "agent": "requirements", "attempt": 1}
+{"t": 0.017, "event": "task_succeeded", "task": "understand", "ms": 13, "outputs": ["domain_confidence", "requirement"]}
+{"t": 0.017, "event": "gate_requested", "gate": "requirements", "task": "understand", "questions": 11, "blocking": 0}
+{"t": 0.018, "event": "gate_decided", "gate": "requirements", "approved": true, "by": "policy:auto", "comment": "accepted 11 default assumption(s); flagged in summary"}
+{"t": 0.021, "event": "task_started", "task": "plan", "agent": "planner", "attempt": 1}
+{"t": 0.023, "event": "task_succeeded", "task": "plan", "ms": 1, "outputs": ["plan", "plans"]}
+{"t": 0.023, "event": "gate_requested", "gate": "plan", "task": "plan", "questions": 0, "blocking": 0}
+{"t": 0.024, "event": "gate_decided", "gate": "plan", "approved": true, "by": "policy:auto", "comment": ""}
+{"t": 0.024, "event": "plan_extended", "by": "plan", "added": ["design_architecture", "design_contract", "gen_domain", "gen_persistence", "gen_analytics", "gen_edge", "gen_service", "gen_api", "gen_unit_tests", "gen_integration_tests", "gen_docs", "validate", "risk_review", "report"]}
+{"t": 0.028, "event": "task_started", "task": "escalate", "agent": "reporter", "attempt": 1}
+{"t": 0.029, "event": "task_started", "task": "design_architecture", "agent": "architect", "attempt": 1}
+{"t": 0.029, "event": "task_succeeded", "task": "escalate", "ms": 1, "outputs": []}
+{"t": 0.033, "event": "task_succeeded", "task": "design_architecture", "ms": 4, "outputs": ["architecture", "tradeoffs"]}
+{"t": 0.037, "event": "task_started", "task": "design_contract", "agent": "architect", "attempt": 1}
+{"t": 0.053, "event": "task_succeeded", "task": "design_contract", "ms": 15, "outputs": ["api_contract", "data_schema"]}
+{"t": 0.057, "event": "task_started", "task": "gen_domain", "agent": "codegen", "attempt": 1}
+{"t": 0.057, "event": "task_started", "task": "gen_unit_tests", "agent": "testgen", "attempt": 1}
+{"t": 0.058, "event": "task_started", "task": "gen_integration_tests", "agent": "testgen", "attempt": 1}
+{"t": 0.059, "event": "task_started", "task": "gen_docs", "agent": "docgen", "attempt": 1}
+{"t": 0.08, "event": "task_succeeded", "task": "gen_domain", "ms": 23, "outputs": []}
+{"t": 0.089, "event": "task_started", "task": "gen_persistence", "agent": "codegen", "attempt": 1}
+{"t": 0.09, "event": "task_started", "task": "gen_edge", "agent": "codegen", "attempt": 1}
+{"t": 0.092, "event": "task_succeeded", "task": "gen_integration_tests", "ms": 33, "outputs": []}
+{"t": 0.099, "event": "task_succeeded", "task": "gen_persistence", "ms": 10, "outputs": []}
+{"t": 0.105, "event": "task_started", "task": "gen_analytics", "agent": "codegen", "attempt": 1}
+{"t": 0.106, "event": "task_succeeded", "task": "gen_docs", "ms": 46, "outputs": []}
+{"t": 0.11, "event": "task_succeeded", "task": "gen_unit_tests", "ms": 53, "outputs": []}
+{"t": 0.114, "event": "task_succeeded", "task": "gen_edge", "ms": 23, "outputs": []}
+{"t": 0.118, "event": "task_succeeded", "task": "gen_analytics", "ms": 12, "outputs": []}
+{"t": 0.122, "event": "task_started", "task": "gen_service", "agent": "codegen", "attempt": 1}
+{"t": 0.124, "event": "task_succeeded", "task": "gen_service", "ms": 2, "outputs": []}
+{"t": 0.128, "event": "task_started", "task": "gen_api", "agent": "codegen", "attempt": 1}
+{"t": 0.135, "event": "task_succeeded", "task": "gen_api", "ms": 6, "outputs": []}
+{"t": 0.139, "event": "task_started", "task": "validate", "agent": "validator", "attempt": 1}
+{"t": 4.394, "event": "task_succeeded", "task": "validate", "ms": 4254, "outputs": ["validation"]}
+{"t": 4.398, "event": "task_started", "task": "risk_review", "agent": "risk", "attempt": 1}
+{"t": 4.398, "event": "task_succeeded", "task": "risk_review", "ms": 0, "outputs": ["failure_scenarios", "risks", "validation_strategy"]}
+{"t": 4.403, "event": "task_started", "task": "report", "agent": "reporter", "attempt": 1}
+{"t": 4.428, "event": "task_succeeded", "task": "report", "ms": 25, "outputs": ["summary"]}
+{"t": 4.429, "event": "gate_requested", "gate": "release", "task": "report", "questions": 0, "blocking": 0}
+{"t": 4.43, "event": "gate_decided", "gate": "release", "approved": true, "by": "policy:auto", "comment": ""}
+{"t": 4.447, "event": "run_finished", "ok": true, "executions": 17, "repair_cycles": 0}

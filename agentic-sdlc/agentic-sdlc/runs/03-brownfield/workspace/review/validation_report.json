@@ -1,0 +1,89 @@
+{
+  "mode": "brownfield",
+  "changed_files": [
+    "CHANGELOG.md",
+    "links/app.py",
+    "links/models.py",
+    "links/service.py",
+    "links/store.py",
+    "tests/test_alias_regression.py",
+    "tests/test_expiration.py"
+  ],
+  "diff_stats": {
+    "added": 219,
+    "removed": 17
+  },
+  "baseline": {
+    "total": 5,
+    "passed": 5,
+    "failed": 0,
+    "errors": 0,
+    "skipped": 0,
+    "duration_s": 0.0,
+    "failures": []
+  },
+  "tests": {
+    "total": 17,
+    "passed": 17,
+    "failed": 0,
+    "errors": 0,
+    "skipped": 0,
+    "duration_s": 0.02,
+    "failures": []
+  },
+  "regressions": [],
+  "traceability": {
+    "AC-BUG-ALIAS": {
+      "text": "Creating a link with an alias that already exists fails (AliasTaken / HTTP 409) and the original link is unchanged; random-code collisions are retried instead of overwriting",
+      "tests": [
+        "tests/test_alias_regression.py::test_duplicate_alias_is_rejected_and_original_kept",
+        "tests/test_alias_regression.py::test_duplicate_alias_returns_409_over_http",
+        "tests/test_alias_regression.py::test_random_code_collision_is_retried"
+      ]
+    },
+    "AC-EXP-TTL": {
+      "text": "POST /links accepts an optional positive integer ttl_seconds; an expired link returns 410 Gone",
+      "tests": [
+        "tests/test_expiration.py::test_expired_link_returns_410_over_http",
+        "tests/test_expiration.py::test_invalid_ttl_rejected",
+        "tests/test_expiration.py::test_link_with_ttl_expires"
+      ]
+    },
+    "AC-EXP-COMPAT": {
+      "text": "Links created without ttl_seconds never expire (backward compatible API and behaviour)",
+      "tests": [
+        "tests/test_expiration.py::test_links_without_ttl_never_expire"
+      ]
+    },
+    "AC-EXP-MIGRATION": {
+      "text": "Existing databases without an expires_at column are migrated automatically and idempotently",
+      "tests": [
+        "tests/test_expiration.py::test_existing_database_is_migrated"
+      ]
+    },
+    "AC-REGRESSION": {
+      "text": "All pre-existing tests still pass on the changed code base",
+      "tests": [
+        "baseline comparison (validator)"
+      ]
+    }
+  },
+  "tools": {
+    "ruff": {
+      "available": true,
+      "ok": true,
+      "issues": []
+    }
+  },
+  "checks": [
+    "change_scope",
+    "static_safety",
+    "lint",
+    "regression_vs_baseline",
+    "tests",
+    "traceability"
+  ],
+  "findings": [],
+  "blocking": [],
+  "passed": true
+}
