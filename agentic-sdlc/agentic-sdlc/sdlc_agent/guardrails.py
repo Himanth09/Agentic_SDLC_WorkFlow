@@ -16,6 +16,8 @@ from __future__ import annotations
 
 # ast: static safety analysis of generated code.
 import ast
+# os: path separator and case normalisation.
+import os
 # re: secret detection.
 import re
 # dataclass: the Limits configuration.
@@ -44,6 +46,22 @@ class Limits:
     tool_timeout_s: int = 120
 
 
+# Comparable form of a path: no Windows "\\?\" prefix, case-folded where the OS ignores case.
+def _norm(p: Path) -> str:
+    s = str(p)
+    if s.startswith("\\\\?\\UNC\\"):
+        s = "\\\\" + s[8:]
+    elif s.startswith("\\\\?\\"):
+        s = s[4:]
+    return os.path.normcase(s)
+
+
+# True for a Windows directory junction (a symlink-like redirect that is_symlink() misses).
+def _is_junction(p: Path) -> bool:
+    is_junction = getattr(p, "is_junction", None)  # Python 3.12+
+    return bool(is_junction and is_junction())
+
+
 # Sandboxed file writer: every agent write goes through apply().
 class Guardrails:
     # Bind to the workspace root.
@@ -63,17 +81,21 @@ class Guardrails:
         # Reject empty, absolute, or ".."-containing paths up front.
         if not rel or Path(rel).is_absolute() or ".." in Path(rel).parts:
             self._block(f"path '{rel}' is absolute or escapes the workspace")
-        # Resolve against the root.
-        p = (self.root / rel).resolve()
-        # The resolved path must be the root or below it.
-        if self.root not in p.parents and p != self.root:
-            self._block(f"path '{rel}' resolves outside the workspace")
-        # Walk up from the target to the root, rejecting any symlink on the way.
+        # Lexical join: with absolute and ".." paths rejected above, this is inside the root.
+        p = self.root / rel
+        # Walk up from the target to the root, rejecting any symlink/junction on the way.
         for parent in [p, *p.parents]:
             if parent == self.root:
                 break
-            if parent.is_symlink():
+            if parent.is_symlink() or _is_junction(parent):
                 self._block(f"path '{rel}' traverses a symlink")
+        # Defence in depth: the resolved path must also stay below the root. On Windows,
+        # resolve() can return a "\\?\"-prefixed form while a sibling thread is creating a
+        # parent directory, so compare normalised strings rather than Path objects.
+        resolved = _norm(p.resolve())
+        root = _norm(self.root)
+        if resolved != root and not resolved.startswith(root + os.sep):
+            self._block(f"path '{rel}' resolves outside the workspace ({p.resolve()})")
         return p
 
     # Apply a FileChange (create or anchor-based edit) after all checks pass.

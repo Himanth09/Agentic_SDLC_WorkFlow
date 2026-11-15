@@ -25,7 +25,10 @@ def test_writes_outside_workspace_are_blocked(guard, path):
 def test_symlink_escape_is_blocked(guard, tmp_path):
     outside = tmp_path / "outside"
     outside.mkdir()
-    os.symlink(outside, guard.root / "link")
+    try:
+        os.symlink(outside, guard.root / "link")
+    except OSError as exc:  # Windows without admin / Developer Mode (WinError 1314)
+        pytest.skip(f"cannot create symlinks here: {exc}")
     with pytest.raises(GuardrailViolation, match="symlink|outside"):
         guard.apply(FileChange("link/evil.py", "create", "x"))
 
