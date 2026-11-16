@@ -140,10 +140,12 @@ class ShortenerApp:
             principal = self.authenticate(environ) if route.auth else None
             # Path parameters (e.g. code) are passed as keyword arguments.
             return getattr(self, route.handler)(environ, principal=principal, **match.groupdict())
-        # The path exists but not for this method: 405 with an Allow header.
+        # The path exists but not for this method: 405 (problem+json like every error)
+        # with an Allow header listing the methods that are supported.
         if allowed:
-            return Response(405, {"error": "method_not_allowed"},
-                            [("Allow", ", ".join(sorted(set(allowed))))])
+            resp = self.problem(_MethodNotAllowed(f"use {', '.join(sorted(set(allowed)))}"))
+            resp.headers.append(("Allow", ", ".join(sorted(set(allowed)))))
+            return resp
         # No route matched at all.
         return self.problem(_NotFoundRoute())
 
@@ -178,6 +180,10 @@ class ShortenerApp:
 
     # DELETE /api/v1/links/{code}: soft-delete (the service checks ownership).
     def delete_link(self, environ: Environ, principal: str | None, code: str) -> Response:
+        # Only an authenticated owner may disable a link. With keys disabled nobody is
+        # authenticated, so deletion is refused rather than open to everyone.
+        if principal is None:
+            raise Unauthorized("deleting links requires an API key")
         self.service.disable(code, principal)
         return Response(204)
 
@@ -203,9 +209,10 @@ class ShortenerApp:
     # Identify the caller from the X-API-Key header.
     def authenticate(self, environ: Environ) -> str | None:
         key = environ.get("HTTP_X_API_KEY", "")
-        # Keys optional: use the key as the owner if one was sent, else anonymous.
+        # Keys disabled: every caller is anonymous. An unchecked header must never be
+        # trusted, or callers could dodge the rate limit or claim someone else's links.
         if not self.settings.require_api_key:
-            return key or None
+            return None
         # Keys required: missing or unknown keys are rejected.
         if not key or key not in self.settings.api_keys:
             raise Unauthorized()
@@ -220,6 +227,9 @@ class ShortenerApp:
             length = int(environ.get("CONTENT_LENGTH") or 0)
         except ValueError:
             raise BadRequest("invalid Content-Length") from None
+        # A negative length would make read() consume the whole stream, skipping the size limit.
+        if length < 0:
+            raise BadRequest("invalid Content-Length")
         # Check the declared size before reading anything.
         if length > self.settings.max_body_bytes:
             raise PayloadTooLarge(f"body exceeds {self.settings.max_body_bytes} bytes")
@@ -270,6 +280,11 @@ class ShortenerApp:
 # 404 for paths that match no route (distinct title from "Link not found").
 class _NotFoundRoute(ShortenerError):
     status, code, title = 404, "not_found", "No such route"
+
+
+# 405 for a known path called with an unsupported method.
+class _MethodNotAllowed(ShortenerError):
+    status, code, title = 405, "method_not_allowed", "Method not allowed"
 
 
 # Factory used by main.py and the tests.

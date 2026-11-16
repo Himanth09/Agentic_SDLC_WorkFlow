@@ -52,10 +52,11 @@ def call(app, method: str, path: str, body: Any = None, headers: dict[str, str] 
                     "REMOTE_ADDR": remote_addr})
     if body is not None:
         environ["CONTENT_TYPE"] = "application/json"
-    # WSGI convention: "User-Agent" becomes HTTP_USER_AGENT (Content-Type has no HTTP_ prefix).
+    # WSGI convention: "User-Agent" becomes HTTP_USER_AGENT (Content-Type and Content-Length
+    # have no HTTP_ prefix). Passing either here overrides the computed value.
     for k, v in (headers or {}).items():
         name = k.upper().replace("-", "_")
-        environ[name if name in ("CONTENT_TYPE",) else f"HTTP_{name}"] = v
+        environ[name if name in ("CONTENT_TYPE", "CONTENT_LENGTH") else f"HTTP_{name}"] = v
     captured: dict[str, Any] = {}
 
     # Record the status line and headers the app sends.

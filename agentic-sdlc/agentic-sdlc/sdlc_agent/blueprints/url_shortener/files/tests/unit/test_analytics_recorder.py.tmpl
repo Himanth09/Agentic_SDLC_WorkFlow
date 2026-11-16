@@ -53,6 +53,34 @@ def test_store_failure_does_not_crash_flusher():
     assert rec.dropped == 1
 
 
+def test_retention_purge_removes_only_expired_events():
+    """Covers: AC-PRIVACY"""
+    store = InMemoryAnalyticsStore()
+    now = [1_700_000_000.0 + 10 * 86_400]
+    # One-day retention, with a controllable clock.
+    rec = ClickRecorder(store, synchronous=True, retention_s=86_400, clock=lambda: now[0])
+    rec.record(_event(0))                     # ten days old
+    rec.record(_event(10 * 86_400 - 60))      # one minute old
+    assert rec.purge_expired() == 1 and rec.purged == 1
+    assert [e.ts for e in store.events] == [now[0] - 60]
+    # Without a retention setting nothing is purged.
+    assert ClickRecorder(store, synchronous=True).purge_expired() == 0
+
+
+def test_background_thread_enforces_retention():
+    """Covers: AC-PRIVACY"""
+    store = InMemoryAnalyticsStore()
+    store.write_batch([_event(0)])            # far older than the retention window
+    # The flusher purges on its first tick, with no explicit call.
+    rec = ClickRecorder(store, flush_interval_s=0.05, retention_s=60)
+    for _ in range(40):
+        if not store.events:
+            break
+        time.sleep(0.05)
+    rec.close()
+    assert store.events == [] and rec.purged == 1
+
+
 def test_background_flush_interval():
     """Covers: AC-ANALYTICS"""
     store = InMemoryAnalyticsStore()

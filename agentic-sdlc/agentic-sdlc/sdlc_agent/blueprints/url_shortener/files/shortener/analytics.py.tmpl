@@ -19,12 +19,14 @@ import queue
 import sqlite3
 # threading: background flusher thread, locks and the stop signal.
 import threading
+# time: wall clock for the retention cut-off, monotonic clock for purge scheduling.
+import time
 # Counter: aggregate clicks per (code, day) and per referrer / user agent.
 from collections import Counter
 # datetime/timezone: convert epoch seconds to a UTC calendar day.
 from datetime import datetime, timezone
 # Protocol: structural interface shared by the SQLite and in-memory stores.
-from typing import Protocol
+from typing import Callable, Protocol
 
 # One click on a short link (code, time, referrer, user-agent class, visitor hash).
 from .domain import ClickEvent
@@ -180,7 +182,19 @@ class ClickRecorder:
 
     def __init__(self, store: AnalyticsStore, batch_size: int = 500,
                  flush_interval_s: float = 1.0, queue_size: int = 100_000,
-                 synchronous: bool = False) -> None:
+                 synchronous: bool = False, retention_s: float | None = None,
+                 purge_interval_s: float = 3600.0,
+                 clock: Callable[[], float] = time.time) -> None:
+        # Raw events older than retention_s are purged (None = never purge).
+        self.retention_s = retention_s
+        # How often the background thread runs the purge.
+        self.purge_interval_s = purge_interval_s
+        # Wall clock for the cut-off (injectable for tests).
+        self._clock = clock
+        # Monotonic time of the last purge; the first one runs on the first loop tick.
+        self._last_purge: float | None = None
+        # Raw events removed by retention so far.
+        self.purged = 0
         # Where batches are written.
         self.store = store
         # Maximum events per write_batch() call.
@@ -246,10 +260,27 @@ class ClickRecorder:
             log.exception("failed to write %d click events; dropping batch", len(batch))
             self.dropped += len(batch)
 
-    # Background thread body: flush every interval until stop is signalled.
+    # Enforce the retention window: delete raw events older than retention_s.
+    # Daily totals are kept. Returns how many raw events were removed.
+    def purge_expired(self) -> int:
+        if self.retention_s is None:
+            return 0
+        removed = self.store.purge_before(self._clock() - self.retention_s)
+        self.purged += removed
+        return removed
+
+    # Background thread body: flush every interval, and purge once per purge interval,
+    # until stop is signalled.
     def _loop(self) -> None:
         while not self._stop.wait(self.flush_interval_s):
             self.flush()
+            now = time.monotonic()
+            if self._last_purge is None or now - self._last_purge >= self.purge_interval_s:
+                self._last_purge = now
+                try:
+                    self.purge_expired()
+                except Exception:  # noqa: BLE001 - a failed purge is retried next interval
+                    log.exception("retention purge failed")
 
     # Graceful shutdown: stop the thread, then write anything still queued.
     def close(self) -> None:

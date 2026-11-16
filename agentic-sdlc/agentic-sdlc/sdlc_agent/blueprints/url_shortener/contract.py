@@ -55,6 +55,8 @@ def build_openapi(settings: dict[str, Any]) -> dict[str, Any]:
         # Rate limited, with Retry-After.
         "429": {**_problem("Rate limited"),
                 "headers": {"Retry-After": {"schema": {"type": "integer"}}}},
+        # Repeated code collisions (CodeSpaceExhausted); signals the code length is too short.
+        "503": _problem("Could not allocate a unique code"),
     }
     # 401 only exists when API keys are required.
     if settings["require_api_key"]:
@@ -64,10 +66,13 @@ def build_openapi(settings: dict[str, Any]) -> dict[str, Any]:
         create_responses["409"] = _problem("Alias already in use")
 
     # Responses for disabling a link.
+    # 401 is always possible: only an authenticated owner may disable a link, so with
+    # API keys switched off every delete is refused.
     delete_responses = {"204": {"description": "Disabled"},
-                        "404": _problem("Unknown link or not owned by caller")}
-    if settings["require_api_key"]:
-        delete_responses["401"] = _problem("Missing or invalid API key")
+                        "404": _problem("Unknown link or not owned by caller"),
+                        "401": _problem("Missing or invalid API key"
+                                        if settings["require_api_key"]
+                                        else "Deletion requires API keys, which are disabled")}
 
     # Reusable JSON content block for a Link.
     link_json = {"application/json": {"schema": {"$ref": "#/components/schemas/Link"}}}
@@ -126,7 +131,10 @@ def build_openapi(settings: dict[str, Any]) -> dict[str, Any]:
                 # Analytics response.
                 "Stats": {"type": "object", "properties": {
                     "code": {"type": "string"}, "window_days": {"type": "integer"},
-                    "total_clicks": {"type": "integer"}, "unique_visitors": {"type": "integer"},
+                    "total_clicks": {"type": "integer"},
+                    "unique_visitors": {"type": "integer", "description":
+                                        "Sum of daily unique visitors in the window (visitor ids "
+                                        "rotate daily, so a returning visitor counts once per day)"},
                     "clicks_by_day": {"type": "array", "items": {"type": "object", "properties": {
                         "day": {"type": "string", "format": "date"}, "clicks": {"type": "integer"}}}},
                     "top_referrers": {"type": "array", "items": {"type": "object", "properties": {

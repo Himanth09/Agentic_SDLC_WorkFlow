@@ -158,8 +158,9 @@ Alert when `analytics_dropped` increases (analytics capacity) or backlog stays >
 
 ## Operations
 - Graceful shutdown (SIGTERM) flushes buffered click events.
-- Retention: schedule `SQLiteAnalyticsStore.purge_before(now - retention)` daily
-  (production: S3 lifecycle rule on raw events).
+- Retention: the click flusher purges raw events older than `SHORTENER_ANALYTICS_RETENTION_DAYS`
+  every hour; daily totals are kept (production: S3 lifecycle rule on raw events).
+- Set `SHORTENER_IP_HASH_SALT` to the same secret on every worker, or unique visitors are over-counted.
 """
         # The three core documents.
         changes = [FileChange("project/README.md", "create", readme),

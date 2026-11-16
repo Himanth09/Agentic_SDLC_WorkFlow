@@ -8,10 +8,11 @@ from shortener.domain import classify_user_agent, referrer_host, validate_alias,
 from shortener.errors import InvalidAlias, InvalidUrl
 
 
-# Plain, with path/query/fragment, mixed case with a port, and a public IPv4 literal.
+# Plain, with path/query/fragment, mixed case with a port, a public IPv4 literal,
+# and domains with numeric labels that are not the last label.
 @pytest.mark.parametrize("url", [
     "https://example.com", "http://example.com/a/b?q=1#frag", "HTTPS://Example.COM:8443/x",
-    "https://93.184.216.34/page"])
+    "https://93.184.216.34/page", "https://365.example.com/x", "https://1password.com"])
 def test_valid_urls_are_accepted_and_normalised(url):
     """Covers: AC-VALIDATE"""
     out = validate_url(url, 2048)
@@ -32,7 +33,10 @@ def test_url_normalisation_lowercases_scheme_and_host():
     "javascript:alert(1)", "data:text/html,hi", "ftp://example.com/file", "file:///etc/passwd",
     "https://user:pass@example.com", "http://localhost:8080/admin", "http://127.0.0.1/",
     "http://10.0.0.5/", "http://192.168.1.1/", "http://169.254.169.254/latest/meta-data",
-    "http://[::1]/", "https://", "", "   ", None, 42, "example.com"])
+    "http://[::1]/", "https://", "", "   ", None, 42, "example.com",
+    # Non-standard IPv4 spellings browsers read as 127.0.0.1, and a trailing-dot localhost.
+    "http://2130706433/", "http://0x7f000001/", "http://127.1/", "http://0177.0.0.1/",
+    "http://0x7f.0.0.1/", "http://localhost./", "http://127.0.0.1./"])
 def test_unsafe_or_malformed_urls_are_rejected(url):
     """Covers: AC-VALIDATE"""
     with pytest.raises(InvalidUrl):

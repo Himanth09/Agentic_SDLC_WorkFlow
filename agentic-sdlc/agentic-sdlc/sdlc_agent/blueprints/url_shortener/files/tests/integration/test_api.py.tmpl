@@ -147,8 +147,35 @@ def test_malformed_requests(app, auth, settings):
     # Body over max_body_bytes.
     big = {"url": "https://example.com/" + "a" * settings.max_body_bytes}
     assert call(app, "POST", "/api/v1/links", big, headers=auth).status == 413
-    # Known path, unsupported method.
-    assert call(app, "PUT", "/api/v1/links/abcd123", {}, headers=auth).status == 405
+    # Known path, unsupported method: problem+json like every other error, plus Allow.
+    res = call(app, "PUT", "/api/v1/links/abcd123", {}, headers=auth)
+    assert res.status == 405 and res.headers["content-type"] == "application/problem+json"
+    assert res.headers["allow"] == "DELETE, GET"
+
+
+def test_negative_content_length_is_rejected(app, auth, settings):
+    """Covers: AC-CONTRACT, AC-ABUSE"""
+    # A body far over the limit, declared with a negative length: must be refused
+    # before reading, not read in full.
+    big = {"url": "https://example.com/" + "a" * (settings.max_body_bytes * 4)}
+    res = call(app, "POST", "/api/v1/links", big, headers={**auth, "Content-Length": "-1"})
+    assert res.status == 400 and "Content-Length" in res.json()["detail"]
+
+
+def test_api_key_header_is_ignored_when_keys_are_disabled(sqlite_service, settings, clock):
+    """Covers: AC-ABUSE"""
+    keys_off = replace(settings, require_api_key=False)
+    app = create_app(sqlite_service, keys_off, TokenBucketLimiter(2, clock=clock))
+    # Rotating made-up keys must not reset the per-client limit (it falls back to the IP).
+    statuses = [call(app, "POST", "/api/v1/links", {"url": "https://example.com"},
+                     headers={"X-API-Key": f"made-up-{i}"}).status for i in range(3)]
+    assert statuses == [201, 201, 429]
+    # A made-up key can't claim ownership: with keys off, nobody may delete links.
+    # (Created through the service, since this client is now rate limited.)
+    code = sqlite_service.create("https://example.com").code
+    res = call(app, "DELETE", f"/api/v1/links/{code}", headers={"X-API-Key": "made-up-0"})
+    assert res.status == 401
+    assert call(app, "GET", f"/{code}").status == 302
 
 
 def test_health(app):

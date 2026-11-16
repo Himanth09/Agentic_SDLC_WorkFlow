@@ -18,6 +18,9 @@ ALIAS_RE = re.compile(r"^[A-Za-z0-9_-]{4,32}$")
 RESERVED_ALIASES = frozenset({"api", "healthz", "readyz", "metrics", "admin", "static", "docs"})
 # Hostnames that always point at the local machine.
 _BLOCKED_HOSTS = frozenset({"localhost", "localhost.localdomain"})
+# A decimal or hex label ("1", "0x7f"). No real domain ends in one, but browsers read
+# hosts like 2130706433, 0x7f000001, 0177.0.0.1 and 127.1 as IPv4 addresses.
+_NUMERIC_LABEL = re.compile(r"0x[0-9a-f]*|[0-9]+")
 
 
 # A short link. Frozen: changes (such as disabling) produce a new instance.
@@ -81,7 +84,10 @@ def validate_url(raw: object, max_length: int) -> str:
     # user:pass@host URLs are used to disguise the real destination.
     if parts.username or parts.password:
         raise InvalidUrl("urls with embedded credentials are not allowed")
-    host = parts.hostname.lower()
+    # Lower-case, and drop a trailing dot: "localhost." is the same host as "localhost".
+    host = parts.hostname.lower().rstrip(".")
+    if not host:
+        raise InvalidUrl("url must include a host")
     # Named local hosts.
     if host in _BLOCKED_HOSTS or host.endswith(".localhost"):
         raise InvalidUrl("local hosts are not allowed")
@@ -90,6 +96,11 @@ def validate_url(raw: object, max_length: int) -> str:
         ip = ipaddress.ip_address(host)
     except ValueError:
         ip = None
+        # Not a standard address, but browsers would still read it as one (integer, hex,
+        # octal or shortened IPv4). Reject rather than decode it, so the private-address
+        # check below can't be bypassed.
+        if _NUMERIC_LABEL.fullmatch(host.rsplit(".", 1)[-1]):
+            raise InvalidUrl("IP addresses must use standard dotted notation")
     # IP literals must be public, routable unicast addresses.
     if ip is not None and (ip.is_private or ip.is_loopback or ip.is_link_local
                            or ip.is_reserved or ip.is_multicast or ip.is_unspecified):

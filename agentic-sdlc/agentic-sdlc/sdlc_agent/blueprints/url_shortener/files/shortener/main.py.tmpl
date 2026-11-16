@@ -34,9 +34,10 @@ from .service import LinkService
 def build_app(settings: Settings) -> ShortenerApp:
     # One database file holds both links and analytics tables.
     db = SQLiteDatabase(settings.db_path)
-    # Asynchronous, batched analytics writer.
+    # Asynchronous, batched analytics writer that also enforces the retention window.
     recorder = ClickRecorder(SQLiteAnalyticsStore(db), settings.analytics_batch_size,
-                             settings.analytics_flush_interval_s, settings.analytics_queue_size)
+                             settings.analytics_flush_interval_s, settings.analytics_queue_size,
+                             retention_s=settings.analytics_retention_days * 86_400)
     # Business logic, with a read-through cache in front of the repository.
     service = LinkService(settings, SQLiteLinkRepository(db), recorder,
                           cache=TTLCache(settings.cache_size))
@@ -46,7 +47,14 @@ def build_app(settings: Settings) -> ShortenerApp:
 
 def wsgi() -> ShortenerApp:
     """App factory for external WSGI servers."""
-    return build_app(Settings.from_env())
+    settings = Settings.from_env()
+    # Each worker process would otherwise pick its own random salt, so the same visitor
+    # would hash differently per worker and unique-visitor counts would be inflated.
+    if settings.analytics_ip_mode == "hash" and "SHORTENER_IP_HASH_SALT" not in os.environ:
+        logging.getLogger(__name__).warning(
+            "SHORTENER_IP_HASH_SALT is not set: unique visitors will be over-counted "
+            "with more than one worker or across restarts")
+    return build_app(settings)
 
 
 # Threaded WSGI server; daemon threads don't block process exit.
