@@ -3,12 +3,12 @@
   "files_checked": 24,
   "tools": {
     "ruff": {
-      "available": true,
+      "available": false,
       "ok": true,
       "issues": []
     },
     "mypy": {
-      "available": true,
+      "available": false,
       "ok": true,
       "issues": []
     }
@@ -19,7 +19,7 @@
     "failed": 0,
     "errors": 0,
     "skipped": 0,
-    "duration_s": 0.23,
+    "duration_s": 0.71,
     "failures": []
   },
   "traceability": {

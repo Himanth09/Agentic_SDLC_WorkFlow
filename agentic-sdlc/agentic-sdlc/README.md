@@ -98,11 +98,13 @@ sdlc_agent/
 examples/                requirements, recorded answers, legacy_links (brownfield target repo)
 runs/                    outputs of scripts/run_demo.sh (committed so reviewers can read them without running)
 tests/                   tests for the agentic system (orchestration, guardrails, agents, end-to-end)
-docs/                    ARCHITECTURE.md, SCENARIOS.md, TESTING.md
+docs/                    FLOW.md, ARCHITECTURE.md, SCENARIOS.md, TESTING.md
 ```
 
 ## Documentation
 
+- [docs/FLOW.md](docs/FLOW.md): how the four layers (control plane, agents, domain pack,
+  examples/tests/outputs) connect, and one run traced step by step through the code
 - [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md): components, execution model, control flow,
   design decisions, and the path to production on AWS
 - [docs/SCENARIOS.md](docs/SCENARIOS.md): greenfield, brownfield and ambiguous examples with

@@ -1,12 +1,16 @@
+# Packaging metadata for the generated service.
 [project]
 name = "shortener"
 version = "0.1.0"
 requires-python = ">=3.10"
+# Standard library only at runtime: nothing to install to run the service.
 dependencies = []
 
+# Development tools: pip install -e ".[dev]"
 [project.optional-dependencies]
 dev = ["pytest>=7"]
 
+# Run the tests from the project root so "shortener" and "tests" both import.
 [tool.pytest.ini_options]
 pythonpath = ["."]
 testpaths = ["tests"]

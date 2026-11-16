@@ -1,0 +1,195 @@
+{
+  "run_id": "show-faults",
+  "repair_cycles": 0,
+  "executions": 17,
+  "tasks": [
+    {
+      "id": "understand",
+      "status": "succeeded",
+      "attempts": 1,
+      "started_at": 1794812210.4730392,
+      "finished_at": 1794812210.490678,
+      "error": null,
+      "notes": [
+        "kind=greenfield domain=url_shortener confidence=1.00",
+        "5 stated / 5 assumed capabilities, 11 ambiguities, 12 acceptance criteria"
+      ]
+    },
+    {
+      "id": "plan",
+      "status": "succeeded",
+      "attempts": 1,
+      "started_at": 1794812210.497747,
+      "finished_at": 1794812210.500311,
+      "error": null,
+      "notes": [
+        "14 tasks planned (initial)"
+      ]
+    },
+    {
+      "id": "escalate",
+      "status": "succeeded",
+      "attempts": 1,
+      "started_at": 1794812210.5117595,
+      "finished_at": 1794812210.5148442,
+      "error": null,
+      "notes": [
+        "not needed: plan approved, full report will follow"
+      ]
+    },
+    {
+      "id": "design_architecture",
+      "status": "succeeded",
+      "attempts": 1,
+      "started_at": 1794812210.5133457,
+      "finished_at": 1794812210.5220037,
+      "error": null,
+      "notes": [
+        "8 components, 7 ADRs"
+      ]
+    },
+    {
+      "id": "design_contract",
+      "status": "succeeded",
+      "attempts": 1,
+      "started_at": 1794812210.5271914,
+      "finished_at": 1794812210.5623837,
+      "error": null,
+      "notes": [
+        "6 operations, 3 tables"
+      ]
+    },
+    {
+      "id": "gen_domain",
+      "status": "succeeded",
+      "attempts": 1,
+      "started_at": 1794812210.5682037,
+      "finished_at": 1794812210.6465316,
+      "error": null,
+      "notes": [
+        "5 file change(s): project/shortener/__init__.py, project/shortener/codes.py, project/shortener/config.py, project/shortener/domain.py, project/shortener/errors.py"
+      ]
+    },
+    {
+      "id": "gen_persistence",
+      "status": "succeeded",
+      "attempts": 1,
+      "started_at": 1794812210.6587248,
+      "finished_at": 1794812210.6846967,
+      "error": null,
+      "notes": [
+        "1 file change(s): project/shortener/repository.py"
+      ]
+    },
+    {
+      "id": "gen_analytics",
+      "status": "succeeded",
+      "attempts": 1,
+      "started_at": 1794812210.692287,
+      "finished_at": 1794812210.7216098,
+      "error": null,
+      "notes": [
+        "1 file change(s): project/shortener/analytics.py"
+      ]
+    },
+    {
+      "id": "gen_edge",
+      "status": "succeeded",
+      "attempts": 1,
+      "started_at": 1794812210.6603625,
+      "finished_at": 1794812210.7092862,
+      "error": null,
+      "notes": [
+        "2 file change(s): project/shortener/cache.py, project/shortener/ratelimit.py"
+      ]
+    },
+    {
+      "id": "gen_service",
+      "status": "succeeded",
+      "attempts": 1,
+      "started_at": 1794812210.7365777,
+      "finished_at": 1794812210.7596812,
+      "error": null,
+      "notes": [
+        "1 file change(s): project/shortener/service.py"
+      ]
+    },
+    {
+      "id": "gen_api",
+      "status": "succeeded",
+      "attempts": 1,
+      "started_at": 1794812210.7657676,
+      "finished_at": 1794812210.8404806,
+      "error": null,
+      "notes": [
+        "3 file change(s): project/pyproject.toml, project/shortener/http.py, project/shortener/main.py"
+      ]
+    },
+    {
+      "id": "gen_unit_tests",
+      "status": "succeeded",
+      "attempts": 1,
+      "started_at": 1794812210.570042,
+      "finished_at": 1794812210.7285156,
+      "error": null,
+      "notes": [
+        "32 test functions across 8 files; covers 10 acceptance criteria"
+      ]
+    },
+    {
+      "id": "gen_integration_tests",
+      "status": "succeeded",
+      "attempts": 1,
+      "started_at": 1794812210.571613,
+      "finished_at": 1794812210.6751575,
+      "error": null,
+      "notes": [
+        "23 test functions across 4 files; covers 11 acceptance criteria"
+      ]
+    },
+    {
+      "id": "gen_docs",
+      "status": "succeeded",
+      "attempts": 1,
+      "started_at": 1794812210.5732954,
+      "finished_at": 1794812210.60766,
+      "error": null,
+      "notes": [
+        "10 documents"
+      ]
+    },
+    {
+      "id": "validate",
+      "status": "succeeded",
+      "attempts": 1,
+      "started_at": 1794812210.861819,
+      "finished_at": 1794812216.313316,
+      "error": null,
+      "notes": [
+        "tests 92/92 passed; 0 non-blocking finding(s)"
+      ]
+    },
+    {
+      "id": "risk_review",
+      "status": "succeeded",
+      "attempts": 1,
+      "started_at": 1794812216.3197103,
+      "finished_at": 1794812216.3207703,
+      "error": null,
+      "notes": [
+        "9 risks (1 from unconfirmed assumptions)"
+      ]
+    },
+    {
+      "id": "report",
+      "status": "succeeded",
+      "attempts": 1,
+      "started_at": 1794812216.3268983,
+      "finished_at": 1794812216.5643313,
+      "error": null,
+      "notes": [
+        "summary written; status=ready_for_review"
+      ]
+    }
+  ]
+}

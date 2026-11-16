@@ -802,8 +802,8 @@
       "id": "understand",
       "status": "succeeded",
       "attempts": 1,
-      "started_at": 1794494639.6956427,
-      "finished_at": 1794494639.7004125,
+      "started_at": 1794763744.7018955,
+      "finished_at": 1794763744.712262,
       "error": null,
       "notes": [
         "kind=greenfield domain=url_shortener confidence=1.00",
@@ -814,8 +814,8 @@
       "id": "plan",
       "status": "succeeded",
       "attempts": 1,
-      "started_at": 1794494639.7009532,
-      "finished_at": 1794494639.7012234,
+      "started_at": 1794763744.7183664,
+      "finished_at": 1794763744.7199163,
       "error": null,
       "notes": [
         "14 tasks planned (initial)"
@@ -825,8 +825,8 @@
       "id": "escalate",
       "status": "succeeded",
       "attempts": 1,
-      "started_at": 1794494639.7019155,
-      "finished_at": 1794494639.702398,
+      "started_at": 1794763744.7274354,
+      "finished_at": 1794763744.728977,
       "error": null,
       "notes": [
         "not needed: plan approved, full report will follow"
@@ -836,8 +836,8 @@
       "id": "design_architecture",
       "status": "succeeded",
       "attempts": 1,
-      "started_at": 1794494639.7020102,
-      "finished_at": 1794494639.7039196,
+      "started_at": 1794763744.728223,
+      "finished_at": 1794763744.7327318,
       "error": null,
       "notes": [
         "8 components, 7 ADRs"
@@ -847,8 +847,8 @@
       "id": "design_contract",
       "status": "succeeded",
       "attempts": 1,
-      "started_at": 1794494639.7052593,
-      "finished_at": 1794494639.7134056,
+      "started_at": 1794763744.7365055,
+      "finished_at": 1794763744.7545583,
       "error": null,
       "notes": [
         "6 operations, 3 tables"
@@ -858,8 +858,8 @@
       "id": "gen_domain",
       "status": "succeeded",
       "attempts": 1,
-      "started_at": 1794494639.7152345,
-      "finished_at": 1794494639.735936,
+      "started_at": 1794763744.7603283,
+      "finished_at": 1794763744.786053,
       "error": null,
       "notes": [
         "5 file change(s): project/shortener/__init__.py, project/shortener/codes.py, project/shortener/config.py, project/shortener/domain.py, project/shortener/errors.py"
@@ -869,8 +869,8 @@
       "id": "gen_persistence",
       "status": "succeeded",
       "attempts": 1,
-      "started_at": 1794494639.7372656,
-      "finished_at": 1794494639.7395706,
+      "started_at": 1794763744.793406,
+      "finished_at": 1794763744.8045225,
       "error": null,
       "notes": [
         "1 file change(s): project/shortener/repository.py"
@@ -880,8 +880,8 @@
       "id": "gen_analytics",
       "status": "succeeded",
       "attempts": 1,
-      "started_at": 1794494639.741361,
-      "finished_at": 1794494639.743372,
+      "started_at": 1794763744.8123522,
+      "finished_at": 1794763744.8368845,
       "error": null,
       "notes": [
         "1 file change(s): project/shortener/analytics.py"
@@ -891,8 +891,8 @@
       "id": "gen_edge",
       "status": "succeeded",
       "attempts": 1,
-      "started_at": 1794494639.7373946,
-      "finished_at": 1794494639.741458,
+      "started_at": 1794763744.7941716,
+      "finished_at": 1794763744.8330681,
       "error": null,
       "notes": [
         "2 file change(s): project/shortener/cache.py, project/shortener/ratelimit.py"
@@ -902,8 +902,8 @@
       "id": "gen_service",
       "status": "succeeded",
       "attempts": 1,
-      "started_at": 1794494639.7447622,
-      "finished_at": 1794494639.7452605,
+      "started_at": 1794763744.8422196,
+      "finished_at": 1794763744.8451345,
       "error": null,
       "notes": [
         "1 file change(s): project/shortener/service.py"
@@ -913,8 +913,8 @@
       "id": "gen_api",
       "status": "succeeded",
       "attempts": 1,
-      "started_at": 1794494639.7468421,
-      "finished_at": 1794494639.7484953,
+      "started_at": 1794763744.8489885,
+      "finished_at": 1794763744.8566208,
       "error": null,
       "notes": [
         "3 file change(s): project/pyproject.toml, project/shortener/http.py, project/shortener/main.py"
@@ -924,8 +924,8 @@
       "id": "gen_unit_tests",
       "status": "succeeded",
       "attempts": 1,
-      "started_at": 1794494639.7153575,
-      "finished_at": 1794494639.7377892,
+      "started_at": 1794763744.761151,
+      "finished_at": 1794763744.822565,
       "error": null,
       "notes": [
         "32 test functions across 8 files; covers 10 acceptance criteria"
@@ -935,8 +935,8 @@
       "id": "gen_integration_tests",
       "status": "succeeded",
       "attempts": 1,
-      "started_at": 1794494639.7154033,
-      "finished_at": 1794494639.7276695,
+      "started_at": 1794763744.7625582,
+      "finished_at": 1794763744.7963786,
       "error": null,
       "notes": [
         "21 test functions across 4 files; covers 11 acceptance criteria"
@@ -946,8 +946,8 @@
       "id": "gen_docs",
       "status": "succeeded",
       "attempts": 1,
-      "started_at": 1794494639.716381,
-      "finished_at": 1794494639.731314,
+      "started_at": 1794763744.7642167,
+      "finished_at": 1794763744.8286397,
       "error": null,
       "notes": [
         "10 documents"
@@ -957,8 +957,8 @@
       "id": "validate",
       "status": "succeeded",
       "attempts": 1,
-      "started_at": 1794494639.749903,
-      "finished_at": 1794494641.6524017,
+      "started_at": 1794763744.861493,
+      "finished_at": 1794763748.7324739,
       "error": null,
       "notes": [
         "tests 90/90 passed; 0 non-blocking finding(s)"
@@ -968,19 +968,19 @@
       "id": "risk_review",
       "status": "succeeded",
       "attempts": 1,
-      "started_at": 1794494641.6544182,
-      "finished_at": 1794494641.654688,
+      "started_at": 1794763748.737165,
+      "finished_at": 1794763748.739034,
       "error": null,
       "notes": [
-        "7 risks (1 from unconfirmed assumptions)"
+        "9 risks (1 from unconfirmed assumptions)"
       ]
     },
     "report": {
       "id": "report",
       "status": "succeeded",
       "attempts": 1,
-      "started_at": 1794494641.6562924,
-      "finished_at": 1794494641.6587803,
+      "started_at": 1794763748.7443156,
+      "finished_at": 1794763748.7813637,
       "error": null,
       "notes": [
         "summary written; status=ready_for_review"
@@ -992,12 +992,12 @@
     "files_checked": 24,
     "tools": {
       "ruff": {
-        "available": true,
+        "available": false,
         "ok": true,
         "issues": []
       },
       "mypy": {
-        "available": true,
+        "available": false,
         "ok": true,
         "issues": []
       }
@@ -1008,7 +1008,7 @@
       "failed": 0,
       "errors": 0,
       "skipped": 0,
-      "duration_s": 0.23,
+      "duration_s": 0.71,
       "failures": []
     },
     "traceability": {
@@ -1205,6 +1205,22 @@
       "impact": "medium",
       "mitigation": "Defaulted to: Design target 10k redirects/s peak, 100 creates/s, ~1B links over 5 years (read:write ~ 100:1). The prototype is sized for one node; the design scales out.. Confirm before production; the value is configurable.",
       "category": "requirements"
+    },
+    {
+      "id": "R-TOOL-ruff",
+      "title": "Validation gap: ruff not installed",
+      "likelihood": "low",
+      "impact": "low",
+      "mitigation": "Install ruff in CI; its checks did not run",
+      "category": "process"
+    },
+    {
+      "id": "R-TOOL-mypy",
+      "title": "Validation gap: mypy not installed",
+      "likelihood": "low",
+      "impact": "low",
+      "mitigation": "Install mypy in CI; its checks did not run",
+      "category": "process"
     }
   ],
   "tradeoffs": [
@@ -1308,7 +1324,7 @@
       "decided_by": "policy:auto",
       "comment": "accepted 11 default assumption(s); flagged in summary",
       "answers": {},
-      "at": 1794494639.700581
+      "at": 1794763744.7136326
     },
     {
       "gate": "plan",
@@ -1316,7 +1332,7 @@
       "decided_by": "policy:auto",
       "comment": "",
       "answers": {},
-      "at": 1794494639.7013376
+      "at": 1794763744.721563
     },
     {
       "gate": "release",
@@ -1324,7 +1340,7 @@
       "decided_by": "policy:auto",
       "comment": "",
       "answers": {},
-      "at": 1794494641.6589174
+      "at": 1794763748.7831798
     }
   ],
   "artifacts": [
@@ -1415,8 +1431,8 @@
     {
       "path": "project/pyproject.toml",
       "task": "gen_api",
-      "lines": 12,
-      "sha": "f9a15a705487",
+      "lines": 16,
+      "sha": "63e62c8aa5a0",
       "op": "create"
     },
     {
@@ -1429,85 +1445,85 @@
     {
       "path": "project/shortener/analytics.py",
       "task": "gen_analytics",
-      "lines": 200,
-      "sha": "d88919a1d4ed",
+      "lines": 264,
+      "sha": "12765146bec3",
       "op": "create"
     },
     {
       "path": "project/shortener/cache.py",
       "task": "gen_edge",
-      "lines": 60,
-      "sha": "13922809e9f7",
+      "lines": 78,
+      "sha": "353379f6312e",
       "op": "create"
     },
     {
       "path": "project/shortener/codes.py",
       "task": "gen_domain",
-      "lines": 46,
-      "sha": "d304fed5ac8b",
+      "lines": 61,
+      "sha": "12c352ecae4e",
       "op": "create"
     },
     {
       "path": "project/shortener/config.py",
       "task": "gen_domain",
-      "lines": 76,
-      "sha": "eb3eef626a8e",
+      "lines": 107,
+      "sha": "bed1dc580d74",
       "op": "create"
     },
     {
       "path": "project/shortener/domain.py",
       "task": "gen_domain",
-      "lines": 103,
-      "sha": "39edd4d56fba",
+      "lines": 140,
+      "sha": "3172d4ebc23b",
       "op": "create"
     },
     {
       "path": "project/shortener/errors.py",
       "task": "gen_domain",
-      "lines": 65,
-      "sha": "c805841497df",
+      "lines": 83,
+      "sha": "cd5a11f3b385",
       "op": "create"
     },
     {
       "path": "project/shortener/http.py",
       "task": "gen_api",
-      "lines": 215,
-      "sha": "a6ead86eae2f",
+      "lines": 278,
+      "sha": "8d19a17c9575",
       "op": "create"
     },
     {
       "path": "project/shortener/main.py",
       "task": "gen_api",
-      "lines": 67,
-      "sha": "77576ab7fac6",
+      "lines": 83,
+      "sha": "01d98d391c54",
       "op": "create"
     },
     {
       "path": "project/shortener/ratelimit.py",
       "task": "gen_edge",
-      "lines": 42,
-      "sha": "0acb189670f5",
+      "lines": 58,
+      "sha": "2d4b678e9f9a",
       "op": "create"
     },
     {
       "path": "project/shortener/repository.py",
       "task": "gen_persistence",
-      "lines": 103,
-      "sha": "ba15bd3578eb",
+      "lines": 128,
+      "sha": "5a91831361ff",
       "op": "create"
     },
     {
       "path": "project/shortener/schema.sql",
       "task": "design_contract",
-      "lines": 31,
-      "sha": "b85e284b47ad",
+      "lines": 37,
+      "sha": "350440915a43",
       "op": "create"
     },
     {
       "path": "project/shortener/service.py",
       "task": "gen_service",
-      "lines": 127,
-      "sha": "9daaf669888c",
+      "lines": 165,
+      "sha": "a58cf8d25b46",
       "op": "create"
     },
     {
@@ -1520,8 +1536,8 @@
     {
       "path": "project/tests/conftest.py",
       "task": "gen_unit_tests",
-      "lines": 57,
-      "sha": "22c188e8b601",
+      "lines": 68,
+      "sha": "1b5d53ea428e",
       "op": "create"
     },
     {
@@ -1534,29 +1550,29 @@
     {
       "path": "project/tests/integration/test_api.py",
       "task": "gen_integration_tests",
-      "lines": 128,
-      "sha": "043725a8da18",
+      "lines": 157,
+      "sha": "eebbfd978e57",
       "op": "create"
     },
     {
       "path": "project/tests/integration/test_contract.py",
       "task": "gen_integration_tests",
-      "lines": 49,
-      "sha": "3a279caa64dc",
+      "lines": 56,
+      "sha": "80c10d56b2d8",
       "op": "create"
     },
     {
       "path": "project/tests/integration/test_persistence_and_concurrency.py",
       "task": "gen_integration_tests",
-      "lines": 86,
-      "sha": "19308b34b449",
+      "lines": 101,
+      "sha": "49e7c2466478",
       "op": "create"
     },
     {
       "path": "project/tests/support.py",
       "task": "gen_unit_tests",
-      "lines": 52,
-      "sha": "9791452d9ea0",
+      "lines": 67,
+      "sha": "e55fa2bad31b",
       "op": "create"
     },
     {
@@ -1569,29 +1585,29 @@
     {
       "path": "project/tests/unit/test_analytics_recorder.py",
       "task": "gen_unit_tests",
-      "lines": 58,
-      "sha": "a3598e8a70a2",
+      "lines": 70,
+      "sha": "a97520581bd4",
       "op": "create"
     },
     {
       "path": "project/tests/unit/test_cache_and_ratelimit.py",
       "task": "gen_unit_tests",
-      "lines": 64,
-      "sha": "dc7a4099d27d",
+      "lines": 79,
+      "sha": "f611c7bc3fad",
       "op": "create"
     },
     {
       "path": "project/tests/unit/test_domain_and_codes.py",
       "task": "gen_unit_tests",
-      "lines": 92,
-      "sha": "1a579d38e920",
+      "lines": 110,
+      "sha": "ba7c0683c672",
       "op": "create"
     },
     {
       "path": "project/tests/unit/test_service.py",
       "task": "gen_unit_tests",
-      "lines": 122,
-      "sha": "56c86b6599df",
+      "lines": 139,
+      "sha": "33547a2a5898",
       "op": "create"
     }
   ],
@@ -1606,7 +1622,7 @@
     "decided_by": "policy:auto",
     "comment": "",
     "answers": {},
-    "at": 1794494641.6589174
+    "at": 1794763748.7831798
   },
   "llm": "none (deterministic agents)",
   "path": "ENGINEERING_SUMMARY.md"

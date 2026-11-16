@@ -7,8 +7,8 @@
       "id": "understand",
       "status": "succeeded",
       "attempts": 1,
-      "started_at": 1794494639.6956427,
-      "finished_at": 1794494639.7004125,
+      "started_at": 1794763744.7018955,
+      "finished_at": 1794763744.712262,
       "error": null,
       "notes": [
         "kind=greenfield domain=url_shortener confidence=1.00",
@@ -19,8 +19,8 @@
       "id": "plan",
       "status": "succeeded",
       "attempts": 1,
-      "started_at": 1794494639.7009532,
-      "finished_at": 1794494639.7012234,
+      "started_at": 1794763744.7183664,
+      "finished_at": 1794763744.7199163,
       "error": null,
       "notes": [
         "14 tasks planned (initial)"
@@ -30,8 +30,8 @@
       "id": "escalate",
       "status": "succeeded",
       "attempts": 1,
-      "started_at": 1794494639.7019155,
-      "finished_at": 1794494639.702398,
+      "started_at": 1794763744.7274354,
+      "finished_at": 1794763744.728977,
       "error": null,
       "notes": [
         "not needed: plan approved, full report will follow"
@@ -41,8 +41,8 @@
       "id": "design_architecture",
       "status": "succeeded",
       "attempts": 1,
-      "started_at": 1794494639.7020102,
-      "finished_at": 1794494639.7039196,
+      "started_at": 1794763744.728223,
+      "finished_at": 1794763744.7327318,
       "error": null,
       "notes": [
         "8 components, 7 ADRs"
@@ -52,8 +52,8 @@
       "id": "design_contract",
       "status": "succeeded",
       "attempts": 1,
-      "started_at": 1794494639.7052593,
-      "finished_at": 1794494639.7134056,
+      "started_at": 1794763744.7365055,
+      "finished_at": 1794763744.7545583,
       "error": null,
       "notes": [
         "6 operations, 3 tables"
@@ -63,8 +63,8 @@
       "id": "gen_domain",
       "status": "succeeded",
       "attempts": 1,
-      "started_at": 1794494639.7152345,
-      "finished_at": 1794494639.735936,
+      "started_at": 1794763744.7603283,
+      "finished_at": 1794763744.786053,
       "error": null,
       "notes": [
         "5 file change(s): project/shortener/__init__.py, project/shortener/codes.py, project/shortener/config.py, project/shortener/domain.py, project/shortener/errors.py"
@@ -74,8 +74,8 @@
       "id": "gen_persistence",
       "status": "succeeded",
       "attempts": 1,
-      "started_at": 1794494639.7372656,
-      "finished_at": 1794494639.7395706,
+      "started_at": 1794763744.793406,
+      "finished_at": 1794763744.8045225,
       "error": null,
       "notes": [
         "1 file change(s): project/shortener/repository.py"
@@ -85,8 +85,8 @@
       "id": "gen_analytics",
       "status": "succeeded",
       "attempts": 1,
-      "started_at": 1794494639.741361,
-      "finished_at": 1794494639.743372,
+      "started_at": 1794763744.8123522,
+      "finished_at": 1794763744.8368845,
       "error": null,
       "notes": [
         "1 file change(s): project/shortener/analytics.py"
@@ -96,8 +96,8 @@
       "id": "gen_edge",
       "status": "succeeded",
       "attempts": 1,
-      "started_at": 1794494639.7373946,
-      "finished_at": 1794494639.741458,
+      "started_at": 1794763744.7941716,
+      "finished_at": 1794763744.8330681,
       "error": null,
       "notes": [
         "2 file change(s): project/shortener/cache.py, project/shortener/ratelimit.py"
@@ -107,8 +107,8 @@
       "id": "gen_service",
       "status": "succeeded",
       "attempts": 1,
-      "started_at": 1794494639.7447622,
-      "finished_at": 1794494639.7452605,
+      "started_at": 1794763744.8422196,
+      "finished_at": 1794763744.8451345,
       "error": null,
       "notes": [
         "1 file change(s): project/shortener/service.py"
@@ -118,8 +118,8 @@
       "id": "gen_api",
       "status": "succeeded",
       "attempts": 1,
-      "started_at": 1794494639.7468421,
-      "finished_at": 1794494639.7484953,
+      "started_at": 1794763744.8489885,
+      "finished_at": 1794763744.8566208,
       "error": null,
       "notes": [
         "3 file change(s): project/pyproject.toml, project/shortener/http.py, project/shortener/main.py"
@@ -129,8 +129,8 @@
       "id": "gen_unit_tests",
       "status": "succeeded",
       "attempts": 1,
-      "started_at": 1794494639.7153575,
-      "finished_at": 1794494639.7377892,
+      "started_at": 1794763744.761151,
+      "finished_at": 1794763744.822565,
       "error": null,
       "notes": [
         "32 test functions across 8 files; covers 10 acceptance criteria"
@@ -140,8 +140,8 @@
       "id": "gen_integration_tests",
       "status": "succeeded",
       "attempts": 1,
-      "started_at": 1794494639.7154033,
-      "finished_at": 1794494639.7276695,
+      "started_at": 1794763744.7625582,
+      "finished_at": 1794763744.7963786,
       "error": null,
       "notes": [
         "21 test functions across 4 files; covers 11 acceptance criteria"
@@ -151,8 +151,8 @@
       "id": "gen_docs",
       "status": "succeeded",
       "attempts": 1,
-      "started_at": 1794494639.716381,
-      "finished_at": 1794494639.731314,
+      "started_at": 1794763744.7642167,
+      "finished_at": 1794763744.8286397,
       "error": null,
       "notes": [
         "10 documents"
@@ -162,8 +162,8 @@
       "id": "validate",
       "status": "succeeded",
       "attempts": 1,
-      "started_at": 1794494639.749903,
-      "finished_at": 1794494641.6524017,
+      "started_at": 1794763744.861493,
+      "finished_at": 1794763748.7324739,
       "error": null,
       "notes": [
         "tests 90/90 passed; 0 non-blocking finding(s)"
@@ -173,19 +173,19 @@
       "id": "risk_review",
       "status": "succeeded",
       "attempts": 1,
-      "started_at": 1794494641.6544182,
-      "finished_at": 1794494641.654688,
+      "started_at": 1794763748.737165,
+      "finished_at": 1794763748.739034,
       "error": null,
       "notes": [
-        "7 risks (1 from unconfirmed assumptions)"
+        "9 risks (1 from unconfirmed assumptions)"
       ]
     },
     {
       "id": "report",
       "status": "succeeded",
       "attempts": 1,
-      "started_at": 1794494641.6562924,
-      "finished_at": 1794494641.6587803,
+      "started_at": 1794763748.7443156,
+      "finished_at": 1794763748.7813637,
       "error": null,
       "notes": [
         "summary written; status=ready_for_review"

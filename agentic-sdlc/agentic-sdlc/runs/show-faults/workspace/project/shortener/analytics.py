@@ -1,0 +1,264 @@
+"""Click analytics: asynchronous, batched, privacy-preserving.
+
+The redirect path only *enqueues* an event (O(1), never blocks). A background
+flusher writes batches: raw events (bounded retention) plus pre-aggregated
+daily counters, so stats queries never scan raw events for totals.
+If the queue is full, events are dropped and counted (`dropped`) - analytics
+must never degrade redirect availability. Production equivalent: Kinesis /
+Firehose -> S3 + Athena for raw events, DynamoDB atomic counters for daily totals.
+"""
+from __future__ import annotations
+
+# hashlib: salted SHA-256 for visitor anonymisation.
+import hashlib
+# logging: report failed batch writes without crashing the flusher.
+import logging
+# queue: bounded, thread-safe buffer between redirects and the flusher.
+import queue
+# sqlite3: catch database errors so a failed batch is rolled back.
+import sqlite3
+# threading: background flusher thread, locks and the stop signal.
+import threading
+# Counter: aggregate clicks per (code, day) and per referrer / user agent.
+from collections import Counter
+# datetime/timezone: convert epoch seconds to a UTC calendar day.
+from datetime import datetime, timezone
+# Protocol: structural interface shared by the SQLite and in-memory stores.
+from typing import Protocol
+
+# One click on a short link (code, time, referrer, user-agent class, visitor hash).
+from .domain import ClickEvent
+# Shared SQLite connection factory (one connection per thread).
+from .repository import SQLiteDatabase
+
+# Module logger.
+log = logging.getLogger(__name__)
+
+
+# Epoch seconds -> "YYYY-MM-DD" in UTC (the key for daily counters).
+def utc_day(ts: float) -> str:
+    return datetime.fromtimestamp(ts, tz=timezone.utc).strftime("%Y-%m-%d")
+
+
+# Turn a client IP into a privacy-safe visitor id, or None, depending on the configured mode.
+def anonymize_ip(ip: str | None, mode: str, salt: str, ts: float) -> str | None:
+    """`hash`: salted SHA-256 that rotates daily - counts unique visitors per day
+    without storing IPs and without enabling cross-day tracking. `drop`: nothing."""
+    # "drop" mode (or no IP at all): keep no visitor identity.
+    if mode == "drop" or not ip:
+        return None
+    # The day is part of the hash input, so the same IP gets a different id tomorrow.
+    digest = hashlib.sha256(f"{salt}|{utc_day(ts)}|{ip}".encode()).hexdigest()
+    # 16 hex characters (64 bits) is plenty to count distinct visitors.
+    return digest[:16]
+
+
+# What the recorder and service need from an analytics backend.
+class AnalyticsStore(Protocol):
+    # Persist a batch of click events.
+    def write_batch(self, events: list[ClickEvent]) -> None: ...
+
+    # Aggregate stats for one code since `since_ts` (totals, by day, referrers, agents, uniques).
+    def stats(self, code: str, since_ts: float, now: float) -> dict: ...
+
+    # Delete raw events older than `ts` (retention); returns how many were removed.
+    def purge_before(self, ts: float) -> int: ...
+
+
+# Production-style store: raw events plus pre-aggregated daily counters in SQLite.
+class SQLiteAnalyticsStore:
+    def __init__(self, db: SQLiteDatabase) -> None:
+        # Shared database (same file as the links table).
+        self.db = db
+
+    def write_batch(self, events: list[ClickEvent]) -> None:
+        # Nothing to write: skip the transaction entirely.
+        if not events:
+            return
+        # Pre-aggregate the batch: one counter increment per (code, day) instead of per click.
+        daily = Counter((e.code, utc_day(e.ts)) for e in events)
+        conn = self.db.conn()
+        # Take the write lock up front so the two inserts below commit together.
+        conn.execute("BEGIN IMMEDIATE")
+        try:
+            # Raw events (kept only for the retention window).
+            conn.executemany(
+                "INSERT INTO click_events (code, ts, referrer_host, ua_class, visitor) "
+                "VALUES (?, ?, ?, ?, ?)",
+                [(e.code, e.ts, e.referrer_host, e.ua_class, e.visitor) for e in events])
+            # Daily totals: insert a new row or add to the existing one (upsert).
+            conn.executemany(
+                "INSERT INTO click_daily (code, day, clicks) VALUES (?, ?, ?) "
+                "ON CONFLICT (code, day) DO UPDATE SET clicks = clicks + excluded.clicks",
+                [(code, day, n) for (code, day), n in daily.items()])
+            conn.execute("COMMIT")
+        except sqlite3.Error:
+            # All or nothing: a failed batch leaves no partial counts behind.
+            conn.execute("ROLLBACK")
+            raise
+
+    def stats(self, code: str, since_ts: float, now: float) -> dict:
+        conn = self.db.conn()
+        # All-time total comes from the daily counters, never from raw events.
+        total = conn.execute("SELECT COALESCE(SUM(clicks), 0) FROM click_daily WHERE code = ?",
+                             (code,)).fetchone()[0]
+        # Clicks per day inside the requested window.
+        by_day = conn.execute(
+            "SELECT day, clicks FROM click_daily WHERE code = ? AND day >= ? ORDER BY day",
+            (code, utc_day(since_ts))).fetchall()
+        # Top 10 referrer hosts in the window; no referrer counts as "(direct)".
+        referrers = conn.execute(
+            "SELECT COALESCE(referrer_host, '(direct)'), COUNT(*) AS n FROM click_events "
+            "WHERE code = ? AND ts >= ? GROUP BY 1 ORDER BY n DESC, 1 LIMIT 10",
+            (code, since_ts)).fetchall()
+        # Clicks per user-agent class (browser, bot, ...) in the window.
+        agents = conn.execute(
+            "SELECT ua_class, COUNT(*) FROM click_events WHERE code = ? AND ts >= ? "
+            "GROUP BY 1 ORDER BY 1", (code, since_ts)).fetchall()
+        # Distinct anonymised visitors in the window ("drop" mode stores none, so this is 0).
+        uniques = conn.execute(
+            "SELECT COUNT(DISTINCT visitor) FROM click_events "
+            "WHERE code = ? AND ts >= ? AND visitor IS NOT NULL", (code, since_ts)).fetchone()[0]
+        # Response shape shared with the in-memory store and the OpenAPI contract.
+        return {
+            "total_clicks": int(total),
+            "clicks_by_day": [{"day": d, "clicks": int(c)} for d, c in by_day],
+            "top_referrers": [{"host": h, "clicks": int(n)} for h, n in referrers],
+            "user_agents": {k: int(v) for k, v in agents},
+            "unique_visitors": int(uniques),
+        }
+
+    def purge_before(self, ts: float) -> int:
+        # Retention: drop old raw events; daily totals are kept.
+        cur = self.db.conn().execute("DELETE FROM click_events WHERE ts < ?", (ts,))
+        return cur.rowcount
+
+
+# Test/dev store: keeps raw events in a list and computes stats on demand.
+class InMemoryAnalyticsStore:
+    def __init__(self) -> None:
+        # Every event written so far.
+        self.events: list[ClickEvent] = []
+        # Guards `events` against the flusher thread and request threads.
+        self._lock = threading.Lock()
+
+    def write_batch(self, events: list[ClickEvent]) -> None:
+        with self._lock:
+            self.events.extend(events)
+
+    def stats(self, code: str, since_ts: float, now: float) -> dict:
+        # Copy this code's events under the lock, then aggregate without holding it.
+        with self._lock:
+            mine = [e for e in self.events if e.code == code]
+        # Window-limited events, used for everything except the all-time total.
+        recent = [e for e in mine if e.ts >= since_ts]
+        days = Counter(utc_day(e.ts) for e in recent)
+        refs = Counter(e.referrer_host or "(direct)" for e in recent)
+        # Same shape and ordering rules as SQLiteAnalyticsStore.stats().
+        return {
+            "total_clicks": len(mine),
+            "clicks_by_day": [{"day": d, "clicks": n} for d, n in sorted(days.items())],
+            # Most clicks first, ties broken alphabetically, top 10 only.
+            "top_referrers": [{"host": h, "clicks": n}
+                              for h, n in sorted(refs.items(), key=lambda kv: (-kv[1], kv[0]))[:10]],
+            "user_agents": dict(sorted(Counter(e.ua_class for e in recent).items())),
+            "unique_visitors": len({e.visitor for e in recent if e.visitor}),
+        }
+
+    def purge_before(self, ts: float) -> int:
+        with self._lock:
+            before = len(self.events)
+            # Keep only events at or after the cut-off.
+            self.events = [e for e in self.events if e.ts >= ts]
+            return before - len(self.events)
+
+
+# Decouples redirects from analytics writes: record() is cheap, writing happens in batches.
+class ClickRecorder:
+    """Bounded queue + background batch flusher. `synchronous=True` writes inline
+    (deterministic tests)."""
+
+    def __init__(self, store: AnalyticsStore, batch_size: int = 500,
+                 flush_interval_s: float = 1.0, queue_size: int = 100_000,
+                 synchronous: bool = False) -> None:
+        # Where batches are written.
+        self.store = store
+        # Maximum events per write_batch() call.
+        self.batch_size = batch_size
+        # How often the background thread drains the queue.
+        self.flush_interval_s = flush_interval_s
+        # True: write each event immediately (no thread, no queue).
+        self.synchronous = synchronous
+        # Events lost because the queue was full or a batch write failed.
+        self.dropped = 0
+        # Events successfully written.
+        self.written = 0
+        # Bounded buffer: a full queue drops events instead of slowing redirects.
+        self._q: queue.Queue[ClickEvent] = queue.Queue(maxsize=queue_size)
+        # Signals the flusher thread to stop.
+        self._stop = threading.Event()
+        # Only one flush at a time (background thread vs. explicit flush()/close()).
+        self._flush_lock = threading.Lock()
+        self._thread: threading.Thread | None = None
+        # Asynchronous mode: start the daemon flusher so it never blocks shutdown.
+        if not synchronous:
+            self._thread = threading.Thread(target=self._loop, name="click-flusher", daemon=True)
+            self._thread.start()
+
+    # Called on every redirect: must never block or raise.
+    def record(self, event: ClickEvent) -> None:
+        # Test mode: write straight through.
+        if self.synchronous:
+            self.store.write_batch([event])
+            self.written += 1
+            return
+        try:
+            self._q.put_nowait(event)
+        except queue.Full:
+            # Back-pressure: lose the event, count it, keep serving redirects.
+            self.dropped += 1
+
+    # Drain everything currently queued, in batches; returns the total written so far.
+    def flush(self) -> int:
+        with self._flush_lock:
+            batch: list[ClickEvent] = []
+            while True:
+                try:
+                    batch.append(self._q.get_nowait())
+                except queue.Empty:
+                    break
+                # Write a full batch as soon as it fills up.
+                if len(batch) >= self.batch_size:
+                    self._write(batch)
+                    batch = []
+            # Write whatever is left (possibly an empty list, which is a no-op).
+            self._write(batch)
+            return self.written
+
+    # Write one batch, swallowing errors so the flusher thread survives.
+    def _write(self, batch: list[ClickEvent]) -> None:
+        if not batch:
+            return
+        try:
+            self.store.write_batch(batch)
+            self.written += len(batch)
+        except Exception:  # noqa: BLE001 - never let analytics crash the flusher
+            log.exception("failed to write %d click events; dropping batch", len(batch))
+            self.dropped += len(batch)
+
+    # Background thread body: flush every interval until stop is signalled.
+    def _loop(self) -> None:
+        while not self._stop.wait(self.flush_interval_s):
+            self.flush()
+
+    # Graceful shutdown: stop the thread, then write anything still queued.
+    def close(self) -> None:
+        self._stop.set()
+        if self._thread:
+            self._thread.join(timeout=5)
+        self.flush()
+
+    # Events waiting to be written (exposed on the health endpoint).
+    @property
+    def backlog(self) -> int:
+        return self._q.qsize()

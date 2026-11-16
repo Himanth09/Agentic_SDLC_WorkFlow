@@ -1,0 +1,140 @@
+"""Domain model and input validation (pure functions, no I/O)."""
+from __future__ import annotations
+
+# ipaddress: detect private, loopback and other non-public IP literals.
+import ipaddress
+# re: alias format check.
+import re
+from dataclasses import dataclass
+# urlsplit/urlunsplit: parse and rebuild URLs for validation and normalisation.
+from urllib.parse import urlsplit, urlunsplit
+
+# Validation errors, each mapped to HTTP 422 by the API layer.
+from .errors import InvalidAlias, InvalidUrl
+
+# Custom aliases: 4-32 URL-safe characters.
+ALIAS_RE = re.compile(r"^[A-Za-z0-9_-]{4,32}$")
+# Aliases that would collide with the service's own paths.
+RESERVED_ALIASES = frozenset({"api", "healthz", "readyz", "metrics", "admin", "static", "docs"})
+# Hostnames that always point at the local machine.
+_BLOCKED_HOSTS = frozenset({"localhost", "localhost.localdomain"})
+
+
+# A short link. Frozen: changes (such as disabling) produce a new instance.
+@dataclass(frozen=True)
+class Link:
+    # The short code (generated or custom alias).
+    code: str
+    # Validated, normalised destination URL.
+    target_url: str
+    # Creation time, epoch seconds.
+    created_at: float
+    # Expiry time, epoch seconds; None means the link never expires.
+    expires_at: float | None = None
+    # API key that created the link (None when keys aren't required).
+    owner: str | None = None
+    # True if the client chose the code.
+    is_custom: bool = False
+    # Soft-deleted links stay in storage but no longer redirect.
+    disabled: bool = False
+
+    # Expired once the current time reaches expires_at.
+    def is_expired(self, now: float) -> bool:
+        return self.expires_at is not None and now >= self.expires_at
+
+
+# One recorded click. Holds no raw IP or full referrer URL, only privacy-safe fields.
+@dataclass(frozen=True)
+class ClickEvent:
+    # Code of the link that was clicked.
+    code: str
+    # Click time, epoch seconds.
+    ts: float
+    # Host part of the Referer header, or None for direct visits.
+    referrer_host: str | None
+    # "desktop", "mobile", "bot" or "unknown".
+    ua_class: str
+    visitor: str | None  # anonymised visitor id (salted hash) or None
+
+
+def validate_url(raw: object, max_length: int) -> str:
+    """Accept only absolute http(s) URLs to public hosts.
+
+    Rejects: other schemes (javascript:, data:, file:), embedded credentials
+    (classic phishing vector), localhost / private / link-local IP literals
+    (prevents the service being used to bounce users to internal endpoints).
+    Returns a normalised URL (lower-case scheme and host)."""
+    # Must be a non-blank string (the JSON body may contain anything).
+    if not isinstance(raw, str) or not raw.strip():
+        raise InvalidUrl("url must be a non-empty string")
+    url = raw.strip()
+    # Length cap keeps storage and responses bounded.
+    if len(url) > max_length:
+        raise InvalidUrl(f"url longer than {max_length} characters")
+    parts = urlsplit(url)
+    # Scheme allow-list: blocks javascript:, data:, file: and friends.
+    if parts.scheme.lower() not in ("http", "https"):
+        raise InvalidUrl("only http and https URLs are allowed")
+    # Relative URLs or "http://" with no host.
+    if not parts.hostname:
+        raise InvalidUrl("url must include a host")
+    # user:pass@host URLs are used to disguise the real destination.
+    if parts.username or parts.password:
+        raise InvalidUrl("urls with embedded credentials are not allowed")
+    host = parts.hostname.lower()
+    # Named local hosts.
+    if host in _BLOCKED_HOSTS or host.endswith(".localhost"):
+        raise InvalidUrl("local hosts are not allowed")
+    # Is the host an IP literal? (A domain name raises ValueError here.)
+    try:
+        ip = ipaddress.ip_address(host)
+    except ValueError:
+        ip = None
+    # IP literals must be public, routable unicast addresses.
+    if ip is not None and (ip.is_private or ip.is_loopback or ip.is_link_local
+                           or ip.is_reserved or ip.is_multicast or ip.is_unspecified):
+        raise InvalidUrl("private or reserved IP addresses are not allowed")
+    # Rebuild the network location from the lower-cased host and optional port.
+    netloc = host if parts.port is None else f"{host}:{parts.port}"
+    # IPv6 literals must be wrapped in brackets in a URL.
+    if ip is not None and ip.version == 6:
+        netloc = f"[{host}]" if parts.port is None else f"[{host}]:{parts.port}"
+    # Normalised URL; an empty path becomes "/".
+    return urlunsplit((parts.scheme.lower(), netloc, parts.path or "/", parts.query,
+                       parts.fragment))
+
+
+# Check a client-chosen alias: right format and not a reserved word (case-insensitive).
+def validate_alias(alias: object) -> str:
+    if not isinstance(alias, str) or not ALIAS_RE.fullmatch(alias):
+        raise InvalidAlias("alias must be 4-32 characters of [A-Za-z0-9_-]")
+    if alias.lower() in RESERVED_ALIASES:
+        raise InvalidAlias(f"'{alias}' is reserved")
+    return alias
+
+
+# Substrings that identify crawlers, link previewers and scripted clients.
+_BOT_HINTS = ("bot", "crawler", "spider", "slurp", "preview", "curl", "wget", "python-requests", "python-urllib")
+# Substrings that identify mobile devices.
+_MOBILE_HINTS = ("mobile", "android", "iphone", "ipad")
+
+
+# Coarse user-agent class for analytics; the raw User-Agent string is never stored.
+def classify_user_agent(ua: str | None) -> str:
+    if not ua:
+        return "unknown"
+    low = ua.lower()
+    # Bots are checked first: some bot user agents also mention "mobile".
+    if any(h in low for h in _BOT_HINTS):
+        return "bot"
+    if any(h in low for h in _MOBILE_HINTS):
+        return "mobile"
+    return "desktop"
+
+
+def referrer_host(referrer: str | None) -> str | None:
+    """Keep only the referring host: full referrer URLs can carry PII in query strings."""
+    if not referrer:
+        return None
+    host = urlsplit(referrer).hostname
+    return host.lower() if host else None

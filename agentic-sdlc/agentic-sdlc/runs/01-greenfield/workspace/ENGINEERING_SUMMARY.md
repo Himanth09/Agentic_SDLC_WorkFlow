@@ -117,34 +117,34 @@ graph TD
 
 | Task | Agent | Depends on | Status | Attempts | ms | Notes |
 |---|---|---|---|---|---|---|
-| `understand` | requirements | - | succeeded | 1 | 4 | kind=greenfield domain=url_shortener confidence=1.00; 5 stated / 5 assumed capabilities, 11 ambiguities, 12 acceptance criteria |
-| `plan` | planner | understand | succeeded | 1 | 0 | 14 tasks planned (initial) |
-| `escalate` | reporter | plan | succeeded | 1 | 0 | not needed: plan approved, full report will follow |
-| `design_architecture` | architect | plan | succeeded | 1 | 1 | 8 components, 7 ADRs |
-| `design_contract` | architect | design_architecture | succeeded | 1 | 8 | 6 operations, 3 tables |
-| `gen_domain` | codegen | design_contract | succeeded | 1 | 20 | 5 file change(s): project/shortener/__init__.py, project/shortener/codes.py, project/shortener/config.py, project/shortener/domain.py, project/shortener/errors.py |
-| `gen_persistence` | codegen | gen_domain | succeeded | 1 | 2 | 1 file change(s): project/shortener/repository.py |
-| `gen_analytics` | codegen | gen_persistence | succeeded | 1 | 2 | 1 file change(s): project/shortener/analytics.py |
-| `gen_edge` | codegen | gen_domain | succeeded | 1 | 4 | 2 file change(s): project/shortener/cache.py, project/shortener/ratelimit.py |
-| `gen_service` | codegen | gen_persistence, gen_analytics, gen_edge | succeeded | 1 | 0 | 1 file change(s): project/shortener/service.py |
-| `gen_api` | codegen | gen_service, design_contract | succeeded | 1 | 1 | 3 file change(s): project/pyproject.toml, project/shortener/http.py, project/shortener/main.py |
-| `gen_unit_tests` | testgen | design_contract | succeeded | 1 | 22 | 32 test functions across 8 files; covers 10 acceptance criteria |
-| `gen_integration_tests` | testgen | design_contract | succeeded | 1 | 12 | 21 test functions across 4 files; covers 11 acceptance criteria |
-| `gen_docs` | docgen | design_contract | succeeded | 1 | 14 | 10 documents |
-| `validate` | validator | gen_domain, gen_persistence, gen_analytics, gen_edge, gen_service, gen_api, gen_unit_tests, gen_integration_tests | succeeded | 1 | 1902 | tests 90/90 passed; 0 non-blocking finding(s) |
-| `risk_review` | risk | validate | succeeded | 1 | 0 | 7 risks (1 from unconfirmed assumptions) |
-| `report` | reporter | risk_review, gen_docs | succeeded | 1 | 2 | summary written; status=ready_for_review |
+| `understand` | requirements | - | succeeded | 1 | 10 | kind=greenfield domain=url_shortener confidence=1.00; 5 stated / 5 assumed capabilities, 11 ambiguities, 12 acceptance criteria |
+| `plan` | planner | understand | succeeded | 1 | 1 | 14 tasks planned (initial) |
+| `escalate` | reporter | plan | succeeded | 1 | 1 | not needed: plan approved, full report will follow |
+| `design_architecture` | architect | plan | succeeded | 1 | 4 | 8 components, 7 ADRs |
+| `design_contract` | architect | design_architecture | succeeded | 1 | 18 | 6 operations, 3 tables |
+| `gen_domain` | codegen | design_contract | succeeded | 1 | 25 | 5 file change(s): project/shortener/__init__.py, project/shortener/codes.py, project/shortener/config.py, project/shortener/domain.py, project/shortener/errors.py |
+| `gen_persistence` | codegen | gen_domain | succeeded | 1 | 11 | 1 file change(s): project/shortener/repository.py |
+| `gen_analytics` | codegen | gen_persistence | succeeded | 1 | 24 | 1 file change(s): project/shortener/analytics.py |
+| `gen_edge` | codegen | gen_domain | succeeded | 1 | 38 | 2 file change(s): project/shortener/cache.py, project/shortener/ratelimit.py |
+| `gen_service` | codegen | gen_persistence, gen_analytics, gen_edge | succeeded | 1 | 2 | 1 file change(s): project/shortener/service.py |
+| `gen_api` | codegen | gen_service, design_contract | succeeded | 1 | 7 | 3 file change(s): project/pyproject.toml, project/shortener/http.py, project/shortener/main.py |
+| `gen_unit_tests` | testgen | design_contract | succeeded | 1 | 61 | 32 test functions across 8 files; covers 10 acceptance criteria |
+| `gen_integration_tests` | testgen | design_contract | succeeded | 1 | 33 | 21 test functions across 4 files; covers 11 acceptance criteria |
+| `gen_docs` | docgen | design_contract | succeeded | 1 | 64 | 10 documents |
+| `validate` | validator | gen_domain, gen_persistence, gen_analytics, gen_edge, gen_service, gen_api, gen_unit_tests, gen_integration_tests | succeeded | 1 | 3870 | tests 90/90 passed; 0 non-blocking finding(s) |
+| `risk_review` | risk | validate | succeeded | 1 | 1 | 9 risks (1 from unconfirmed assumptions) |
+| `report` | reporter | risk_review, gen_docs | succeeded | 1 | 37 | summary written; status=ready_for_review |
 
 ## 3. Orchestration trace
 
-- 17 task executions, max parallelism 4, 0 transient retries, 0 repair cycle(s), 3 human/policy gate decisions
+- 17 task executions, max parallelism 5, 0 transient retries, 0 repair cycle(s), 3 human/policy gate decisions
 
 | t (s) | Event | Detail |
 |---|---|---|
-| 0.005 | gate_decided | gate=requirements, approved=True, by=policy:auto, comment=accepted 11 default assumption(s); flagged in summary |
-| 0.006 | gate_decided | gate=plan, approved=True, by=policy:auto, comment= |
-| 0.006 | plan_extended | by=plan, added=['design_architecture', 'design_contract', 'gen_domain', 'gen_persistence', 'gen_analytics', 'gen_edge', 'gen_service', 'gen_api', 'gen_unit_tests', 'gen_integration_tests', 'gen_docs', 'validate', 'risk_review', 'report'] |
-| 1.963 | gate_decided | gate=release, approved=True, by=policy:auto, comment= |
+| 0.014 | gate_decided | gate=requirements, approved=True, by=policy:auto, comment=accepted 11 default assumption(s); flagged in summary |
+| 0.022 | gate_decided | gate=plan, approved=True, by=policy:auto, comment= |
+| 0.022 | plan_extended | by=plan, added=['design_architecture', 'design_contract', 'gen_domain', 'gen_persistence', 'gen_analytics', 'gen_edge', 'gen_service', 'gen_api', 'gen_unit_tests', 'gen_integration_tests', 'gen_docs', 'validate', 'risk_review', 'report'] |
+| 4.083 | gate_decided | gate=release, approved=True, by=policy:auto, comment= |
 
 Full machine-readable trace: `trace.jsonl`.
 
@@ -164,40 +164,40 @@ Full machine-readable trace: `trace.jsonl`.
 | `project/docs/adr/ADR-007.md` | gen_docs | 12 | `fb48741514af` |
 | `project/openapi.json` | design_contract | 458 | `746e3153864a` |
 | `project/openapi.yaml` | design_contract | 273 | `a341e818866e` |
-| `project/pyproject.toml` | gen_api | 12 | `f9a15a705487` |
+| `project/pyproject.toml` | gen_api | 16 | `63e62c8aa5a0` |
 | `project/shortener/__init__.py` | gen_domain | 2 | `dadb67928979` |
-| `project/shortener/analytics.py` | gen_analytics | 200 | `d88919a1d4ed` |
-| `project/shortener/cache.py` | gen_edge | 60 | `13922809e9f7` |
-| `project/shortener/codes.py` | gen_domain | 46 | `d304fed5ac8b` |
-| `project/shortener/config.py` | gen_domain | 76 | `eb3eef626a8e` |
-| `project/shortener/domain.py` | gen_domain | 103 | `39edd4d56fba` |
-| `project/shortener/errors.py` | gen_domain | 65 | `c805841497df` |
-| `project/shortener/http.py` | gen_api | 215 | `a6ead86eae2f` |
-| `project/shortener/main.py` | gen_api | 67 | `77576ab7fac6` |
-| `project/shortener/ratelimit.py` | gen_edge | 42 | `0acb189670f5` |
-| `project/shortener/repository.py` | gen_persistence | 103 | `ba15bd3578eb` |
-| `project/shortener/schema.sql` | design_contract | 31 | `b85e284b47ad` |
-| `project/shortener/service.py` | gen_service | 127 | `9daaf669888c` |
+| `project/shortener/analytics.py` | gen_analytics | 264 | `12765146bec3` |
+| `project/shortener/cache.py` | gen_edge | 78 | `353379f6312e` |
+| `project/shortener/codes.py` | gen_domain | 61 | `12c352ecae4e` |
+| `project/shortener/config.py` | gen_domain | 107 | `bed1dc580d74` |
+| `project/shortener/domain.py` | gen_domain | 140 | `3172d4ebc23b` |
+| `project/shortener/errors.py` | gen_domain | 83 | `cd5a11f3b385` |
+| `project/shortener/http.py` | gen_api | 278 | `8d19a17c9575` |
+| `project/shortener/main.py` | gen_api | 83 | `01d98d391c54` |
+| `project/shortener/ratelimit.py` | gen_edge | 58 | `2d4b678e9f9a` |
+| `project/shortener/repository.py` | gen_persistence | 128 | `5a91831361ff` |
+| `project/shortener/schema.sql` | design_contract | 37 | `350440915a43` |
+| `project/shortener/service.py` | gen_service | 165 | `a58cf8d25b46` |
 | `project/tests/__init__.py` | gen_unit_tests | 0 | `e3b0c44298fc` |
-| `project/tests/conftest.py` | gen_unit_tests | 57 | `22c188e8b601` |
+| `project/tests/conftest.py` | gen_unit_tests | 68 | `1b5d53ea428e` |
 | `project/tests/integration/__init__.py` | gen_integration_tests | 0 | `e3b0c44298fc` |
-| `project/tests/integration/test_api.py` | gen_integration_tests | 128 | `043725a8da18` |
-| `project/tests/integration/test_contract.py` | gen_integration_tests | 49 | `3a279caa64dc` |
-| `project/tests/integration/test_persistence_and_concurrency.py` | gen_integration_tests | 86 | `19308b34b449` |
-| `project/tests/support.py` | gen_unit_tests | 52 | `9791452d9ea0` |
+| `project/tests/integration/test_api.py` | gen_integration_tests | 157 | `eebbfd978e57` |
+| `project/tests/integration/test_contract.py` | gen_integration_tests | 56 | `80c10d56b2d8` |
+| `project/tests/integration/test_persistence_and_concurrency.py` | gen_integration_tests | 101 | `49e7c2466478` |
+| `project/tests/support.py` | gen_unit_tests | 67 | `e55fa2bad31b` |
 | `project/tests/unit/__init__.py` | gen_unit_tests | 0 | `e3b0c44298fc` |
-| `project/tests/unit/test_analytics_recorder.py` | gen_unit_tests | 58 | `a3598e8a70a2` |
-| `project/tests/unit/test_cache_and_ratelimit.py` | gen_unit_tests | 64 | `dc7a4099d27d` |
-| `project/tests/unit/test_domain_and_codes.py` | gen_unit_tests | 92 | `1a579d38e920` |
-| `project/tests/unit/test_service.py` | gen_unit_tests | 122 | `56c86b6599df` |
+| `project/tests/unit/test_analytics_recorder.py` | gen_unit_tests | 70 | `a97520581bd4` |
+| `project/tests/unit/test_cache_and_ratelimit.py` | gen_unit_tests | 79 | `f611c7bc3fad` |
+| `project/tests/unit/test_domain_and_codes.py` | gen_unit_tests | 110 | `ba7c0683c672` |
+| `project/tests/unit/test_service.py` | gen_unit_tests | 139 | `33547a2a5898` |
 
 ## 6. Validation results
 
 - **Overall:** PASSED (0 blocking, 0 total findings)
-- **Tests:** 90/90 passed, 0 failed, 0 errors (0.23s)
+- **Tests:** 90/90 passed, 0 failed, 0 errors (0.71s)
 - **Checks run:** syntax, static_safety, lint, types, schema_conformance, contract_conformance, settings_conformance, tests, traceability
-- **ruff:** clean
-- **mypy:** clean
+- **ruff:** not installed (gap)
+- **mypy:** not installed (gap)
 
 **Traceability (acceptance criterion -> tests)**
 
@@ -227,6 +227,8 @@ Full machine-readable trace: `trace.jsonl`.
 | R-PRIVACY | Analytics retaining personal data beyond purpose | low | high | No raw IPs, referrer reduced to host, retention purge for raw events |
 | R-SINGLE-NODE | Prototype uses SQLite and in-process cache/limiter (single node) | high | medium | All are behind ports; production adapters listed in the architecture; limiter must move to a shared store before scaling out |
 | R-ASSUME-1 | Assumption not confirmed by a human: scalable | medium | medium | Defaulted to: Design target 10k redirects/s peak, 100 creates/s, ~1B links over 5 years (read:write ~ 100:1). The prototype is sized for one node; the design scales out.. Confirm before production; the value is configurable. |
+| R-TOOL-ruff | Validation gap: ruff not installed | low | low | Install ruff in CI; its checks did not run |
+| R-TOOL-mypy | Validation gap: mypy not installed | low | low | Install mypy in CI; its checks did not run |
 
 | Decision | Chosen | Alternatives | Rationale |
 |---|---|---|---|
